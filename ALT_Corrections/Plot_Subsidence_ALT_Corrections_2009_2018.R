@@ -401,7 +401,7 @@ subsidence.model <- lmer(subsidence ~ time*treatment2  +
 summary(subsidence.model)
 
 # save model
-saveRDS(subsidence.model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
+# saveRDS(subsidence.model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
 
 # calculate confidence intervals to look at fixed effects
 subsidence_model_ci <- extract_ci(subsidence.model)
@@ -416,7 +416,10 @@ subpoints.fit <- subpointsC %>%
 ############################################################################################################
 
 ################################### Graphs #################################################################
+model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
 subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv')
+model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
+model2_r2 <- r.squaredGLMM(model2)
 
 # plots
 # plot level subsidence
@@ -448,7 +451,6 @@ g1
 
 # treatment level subsidence - How do you add confidence intervals for a mixed effects model?
 mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour = treatment)) +
-  geom_ribbon(data = model2_ci, aes(ymin = min[1] + min[2]*subpoints.fit$time, ymax = max[1] + max[2]*subpoints.fit$time), inherit.aes = FALSE, alpha = 0.3) +
   geom_abline(intercept = model2_ci$coefs[1], slope = model2_ci$coefs[2], colour = '#006699') +
   geom_abline(intercept=model2_ci[1,2], slope=model2_ci[2,2], colour="#006699", linetype="dashed") +
   geom_abline(intercept=model2_ci[1,3], slope=model2_ci[2,3], colour="#006699", linetype="dashed") +
@@ -475,8 +477,13 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12)) +
-  coord_fixed(ratio = 10)
+  coord_fixed(ratio = 10) +
+  annotate('text', x = 7, y = 0.25, label = paste('y = ', round(model2_ci$coefs[1]*100, 2), ' + ', round(model2_ci$coefs[2]*100, 2), 'x', sep = ''), colour = "#006699") +
+  annotate('text', x = 1.7, y = -0.75, label = paste('y = ', round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), ' + ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*100, 2), 'x', sep = ''), colour = "#990000") +
+  annotate('text', x = 1.05, y = 0.25, label = paste0("~R^2~c==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE)
 
+
+# geom_ribbon(data = model2_ci, aes(ymin = min[1] + min[2]*subpoints.fit$time, ymax = max[1] + max[2]*subpoints.fit$time), inherit.aes = FALSE, alpha = 0.3) +
 mixed.model.graph
 # ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg")
 # ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf")
