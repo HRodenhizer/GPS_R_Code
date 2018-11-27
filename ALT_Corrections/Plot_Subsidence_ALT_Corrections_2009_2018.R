@@ -416,8 +416,20 @@ subpoints.fit <- subpointsC %>%
 ############################################################################################################
 
 ################################### Graphs #################################################################
+# data needed for graphs
 model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
 subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv')
+subpoints.ci <- data.frame(time = rep(seq(0, 9, length.out = 2), 2),
+                           treatment = c(rep('Control', 2), rep('Warming', 2))) %>%
+  mutate(lwr = ifelse(treatment == 'Control',
+                      model2_ci$min[1] + model2_ci$min[2]*time,
+                      model2_ci$min[1] + model2_ci$min[4] + (model2_ci$min[2] + model2_ci$min[3])*time),
+         upr = ifelse(treatment == 'Control',
+                      model2_ci$max[1] + model2_ci$max[2]*time,
+                      model2_ci$max[1] + model2_ci$max[4] + (model2_ci$max[2] + model2_ci$max[3])*time),
+         fit = ifelse(treatment == 'Control',
+                      model2_ci$coefs[1] + model2_ci$coefs[2]*time,
+                      model2_ci$coefs[1] + model2_ci$coefs[4] + (model2_ci$coefs[2] + model2_ci$coefs[3])*time))
 model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 model2_r2 <- r.squaredGLMM(model2)
 
@@ -451,14 +463,14 @@ g1
 
 # treatment level subsidence - How do you add confidence intervals for a mixed effects model?
 mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour = treatment)) +
-  geom_abline(intercept = model2_ci$coefs[1], slope = model2_ci$coefs[2], colour = '#006699') +
-  geom_abline(intercept=model2_ci[1,2], slope=model2_ci[2,2], colour="#006699", linetype="dashed") +
-  geom_abline(intercept=model2_ci[1,3], slope=model2_ci[2,3], colour="#006699", linetype="dashed") +
-  geom_abline(intercept = model2_ci$coefs[1] + model2_ci$coefs[4], slope = model2_ci$coefs[2] + model2_ci$coefs[3], colour = '#990000') +
-  geom_abline(intercept=model2_ci[1,2]+model2_ci[4,2], slope=model2_ci[2,2]+model2_ci[3,2], colour="#990000", linetype="dashed") +
-  geom_abline(intercept=model2_ci[1,3]+model2_ci[4,3], slope=model2_ci[2,3]+model2_ci[3,3], colour="#990000", linetype="dashed") +
+  geom_ribbon(data = subpoints.ci, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
   geom_point(alpha = 0.5) +
+  geom_abline(intercept = model2_ci$coefs[1], slope = model2_ci$coefs[2], colour = '#006699') +
+  geom_abline(intercept = model2_ci$coefs[1] + model2_ci$coefs[4], slope = model2_ci$coefs[2] + model2_ci$coefs[3], colour = '#990000') +
   scale_color_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  scale_fill_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),
                      name = '') +
   scale_x_continuous(breaks = c(1, 3, 5, 7, 9),
@@ -483,7 +495,6 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
   annotate('text', x = 1.05, y = 0.25, label = paste0("~R^2~c==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE)
 
 
-# geom_ribbon(data = model2_ci, aes(ymin = min[1] + min[2]*subpoints.fit$time, ymax = max[1] + max[2]*subpoints.fit$time), inherit.aes = FALSE, alpha = 0.3) +
 mixed.model.graph
 # ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg")
 # ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf")

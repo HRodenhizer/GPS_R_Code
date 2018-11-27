@@ -511,7 +511,7 @@ bd_model_ci <- extract_ci(bd.model)
 bd_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/bd_model.rds")
 bd_model_ci <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/bd_model_coefficients.csv")
 bd_model_r2 <- r.squaredGLMM(bd_model)
-summary(bd.model)
+summary(bd_model)
 
 ### Model moisture ############################################################################################################
 ## Model with interactions between time and all the other predictor variables
@@ -594,7 +594,7 @@ m_model_ci <- extract_ci(m.model)
 m_model <- readRDS('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/m_model.rds')
 m_model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/m_model_coefficients.csv')
 m_model_r2 <- r.squaredGLMM(m_model)
-summary(m.model)
+summary(m_model)
 
 ### Graph models ###################################################################################################################
 # bd.predInt <- predictInterval(bd_model, newdata = ash_profiles_model_ready, n.sims = 100,
@@ -612,17 +612,25 @@ summary(m.model)
 
 ash_profiles_graph <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Soil_Core_Mixed_Effects_Fit.csv') %>%
   mutate(random = paste(wholeplot, time, sep = ':'))
-# 
+bd_ci_ribbon <- data.frame(mean.ALT = seq(min(ash_profiles_graph$mean.ALT), max(ash_profiles_graph$mean.ALT), length.out = 2)) %>%
+  mutate(bd.lwr = bd_model_ci$min[1] + bd_model_ci$max[2]*mean.ALT,
+         bd.upr = bd_model_ci$max[1] + bd_model_ci$min[2]*mean.ALT,
+         bd.fit = bd_model_ci$coefs[1] + bd_model_ci$coefs[2]*mean.ALT)
+m_ci_fit <- expand.grid(mean.ALT = seq(min(ash_profiles_graph$mean.ALT), max(ash_profiles_graph$mean.ALT), length.out = 2),
+                          ash.layer = seq(0, 40, 5)) %>%
+  mutate(m.lwr = m_model_ci$min[1] + m_model_ci$min[2]*ash.layer + m_model_ci$min[3]*mean.ALT,
+         m.upr = m_model_ci$max[1] + m_model_ci$max[2]*ash.layer + m_model_ci$max[3]*mean.ALT,
+         m.fit = m_model_ci$coefs[1] + m_model_ci$coefs[2]*ash.layer + m_model_ci$coefs[3]*mean.ALT)
+
 # ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = bulk.density, color = random)) +
 #   geom_point() +
 #   geom_line(aes(y = bd.fit))
 
 # don't have the lines quite right yet - need to figure out switch from -ALT to +ALT
 bulk.density.treatmentcolors <- ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = bulk.density, color = treatment)) +
+  geom_ribbon(data = bd_ci_ribbon, aes(x = -1*mean.ALT, ymin = bd.lwr, ymax = bd.upr), fill = 'gray', inherit.aes = FALSE, alpha = 0.3) +
   geom_point() +
-  geom_abline(intercept = bd_model_ci$coefs[1], slope = -1*bd_model_ci$coefs[2], colour = 'black') +
-  geom_abline(intercept = bd_model_ci$max[1], slope = -1*bd_model_ci$min[2], colour="black", linetype="dashed") +
-  geom_abline(intercept = bd_model_ci$min[1], slope = -1*bd_model_ci$max[2], colour="black", linetype="dashed") +
+  geom_line(data = bd_ci_ribbon, aes(x = -1*mean.ALT, y = bd.fit), inherit.aes = FALSE, colour = 'black') +
   scale_color_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),
                      name = '')  +
@@ -647,10 +655,9 @@ bulk.density.treatmentcolors
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Mixed_Effects_2018.pdf', bulk.density.treatmentcolors)
 
 bulk.density.timecolors <- ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = bulk.density, color = as.factor(year), shape = treatment)) +
+  geom_ribbon(data = bd_ci_ribbon, aes(x = -1*mean.ALT, ymin = bd.lwr, ymax = bd.upr), fill = 'gray', inherit.aes = FALSE, alpha = 0.3) +
   geom_point() +
-  geom_abline(intercept = bd_model_ci$coefs[1], slope = -1*bd_model_ci$coefs[2], colour = 'black') +
-  geom_abline(intercept = bd_model_ci$max[1], slope = -1*bd_model_ci$min[2], colour="black", linetype="dashed") +
-  geom_abline(intercept = bd_model_ci$min[1], slope = -1*bd_model_ci$max[2], colour="black", linetype="dashed") +
+  geom_line(data = bd_ci_ribbon, aes(x = -1*mean.ALT, y = bd.fit), inherit.aes = FALSE, colour = 'black') +
   scale_color_viridis(name = 'Year',
                       discrete = TRUE)  +
   scale_shape_manual(name = 'Treatment',
@@ -676,14 +683,13 @@ bulk.density.timecolors
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Mixed_Effects_2018_time.jpg', bulk.density.timecolors)
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Mixed_Effects_2018_time.pdf', bulk.density.timecolors)
 
-moisture.treatmentcolors <- ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = moisture, color = treatment)) +
+moisture <- ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = moisture, colour = ash.layer)) +
   geom_point() +
-  geom_abline(intercept = m_model_ci$coefs[1], slope = -1*m_model_ci$coefs[3], colour = 'black') +
-  geom_abline(intercept = m_model_ci$max[1], slope = -1*m_model_ci$min[3], colour="black", linetype="dashed") +
-  geom_abline(intercept = m_model_ci$min[1], slope = -1*m_model_ci$max[3], colour="black", linetype="dashed") +
-  scale_color_manual(values = c("#006699", "#990000"),
-                     labels = c('Control', 'Warming'),
-                     name = '')  +
+  geom_line(data = m_ci_fit, aes(x = -1*mean.ALT, y = m.fit, group = ash.layer, color = ash.layer), inherit.aes = FALSE) +
+  scale_color_gradient(name = 'Ash Layer\n(g ash)',
+                       low = '#3399CC',
+                       high = 'black',
+                       guide = guide_legend(reverse = FALSE))  +
   scale_x_continuous(name = expression(Active~Layer~Thickness~(cm))) +
   scale_y_continuous(name = expression(Soil~Moisture~(g/kg))) +
   theme_few() +
@@ -695,43 +701,12 @@ moisture.treatmentcolors <- ggplot(ash_profiles_graph, aes(x = -1*mean.ALT, y = 
         title = element_text(size = 16),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12)) +
+        strip.text.y = element_text(size = 12),) +
   coord_fixed(ratio = 0.039) +
-  annotate('text', x = 93, y = 1500, label = paste('y = ', round(m_model_ci$coefs[1]*-1, 2), ' + ', round(m_model_ci$coefs[2]*-1, 2), 'x', sep = '')) +
-  annotate('text', x = 89.5, y = 1420, label = paste0("~R^2~c==", round(as.numeric(m_model_r2[2]), 2)), parse = TRUE)
+  annotate('text', x = 82, y = 1500, label = paste('y = ', round(m_model_ci$coefs[1]*-1, 2), ' - ', round(m_model_ci$coefs[2]*-1, 2), '(Ash Layer) - ', round(m_model_ci$coefs[3], 2), '(ALT)', sep = '')) +
+  annotate('text', x = 95, y = 1420, label = paste0("~R^2~c==", round(as.numeric(m_model_r2[2]), 2)), parse = TRUE)
 
-moisture.treatmentcolors
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018.jpg', moisture.treatmentcolors)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018.pdf', moisture.treatmentcolors)
-
-moisture.timecolors <- ggplot(ash_profiles_model_ready, aes(x = -1*mean.ALT, y = moisture, color = as.factor(year), shape = treatment)) +
-  geom_point() +
-  geom_abline(intercept = m_model_ci$coefs[1], slope = -1*m_model_ci$coefs[3], colour = 'black') +
-  geom_abline(intercept = m_model_ci$max[1], slope = -1*m_model_ci$min[3], colour="black", linetype="dashed") +
-  geom_abline(intercept = m_model_ci$min[1], slope = -1*m_model_ci$max[3], colour="black", linetype="dashed") +
-  scale_color_viridis(name = 'Year',
-                      discrete = TRUE)  +
-  scale_shape_manual(name = 'Treatment',
-                     labels = c('Control', 'Warming'),
-                     values = c(16, 17)) +
-  scale_x_continuous(name = expression(Active~Layer~Thickness~(cm))) +
-  scale_y_continuous(name = expression(Soil~Moisture~(g/kg))) +
-  theme_few() +
-  theme_few() +
-  theme(axis.title.x = element_text(size = 16),
-        axis.text.x  = element_text(size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 16),
-        plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12)) +
-  coord_fixed(ratio = 0.039) +
-  annotate('text', x = 93, y = 1500, label = paste('y = ', round(m_model_ci$coefs[1]*-1, 2), ' + ', round(m_model_ci$coefs[2]*-1, 2), 'x', sep = '')) +
-  annotate('text', x = 89.5, y = 1420, label = paste0("~R^2~c==", round(as.numeric(m_model_r2[2]), 2)), parse = TRUE)
-
-moisture.timecolors
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018_time.jpg', moisture.timecolors)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018_time.pdf', moisture.timecolors)
+moisture
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018.jpg', moisture)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Moisture_Mixed_Effects_2018.pdf', moisture)
 

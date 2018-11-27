@@ -6,6 +6,7 @@
 # load libraries
 library(tidyverse)
 library(readxl)
+library(ggthemes)
 
 # load data
 soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009-2013 CiPEHR Processed SOIL DATA_César.xlsx",
@@ -19,7 +20,7 @@ ALTsub.ratio <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur 
 
 # prep alt data - ALT.test contains the ALT corrected with the alt/sub corrected subsidence
 ALTdata <- ALTsub.geoid %>%
-  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming' | treatment == 'Drying',
                              'Control',
                              'Warming')) %>%
   group_by(year, treatment) %>%
@@ -33,7 +34,7 @@ ALTdata <- ALTsub.geoid %>%
 
 # prep the ratio corrected alt data and join with the corrected alt data
 ALTdata3 <- ALTsub.ratio %>%
-  mutate(treatment2 = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+  mutate(treatment2 = ifelse(treatment == 'Control' | treatment == 'Air Warming' | treatment == 'Drying',
                              'Control',
                              'Warming')) %>%
   group_by(year, treatment2) %>%
@@ -47,7 +48,7 @@ ALTdata3 <- ALTsub.ratio %>%
 
 # prep the old alt data and join with the corrected alt data
 ALTdata2 <- ALTsub.control %>%
-  mutate(treatment2 = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+  mutate(treatment2 = ifelse(treatment == 'Control' | treatment == 'Air Warming' | treatment == 'Drying',
                              'Control',
                              'Warming')) %>%
   group_by(year, treatment2) %>%
@@ -110,3 +111,24 @@ carbonchange <- carbon09 %>%
   mutate(diff = tot.C.18-tot.C.09)
   
 # write.csv(carbonchange, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
+
+# plot
+thawed.carbon <- ggplot(carbonchange, aes(x = treatment, y = diff)) +
+  geom_col(fill = '#990000') +
+  scale_x_discrete(name = '') +
+  scale_y_continuous(name = expression(Thawed~Carbon~(gC/m^2))) +
+  theme_few() +
+  theme(axis.title.x = element_text(size = 16),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 16),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+
+thawed.carbon
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Thawed_Carbon.jpg', thawed.carbon)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Thawed_Carbon.pdf', thawed.carbon)
