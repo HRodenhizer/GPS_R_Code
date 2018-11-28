@@ -11,6 +11,8 @@ library(tidyverse)
 library(rgdal)
 library(sp)
 library(sf)
+library(ggthemes)
+library(viridis)
 ############################################################################################################
 
 ### Load data ##############################################################################################
@@ -70,17 +72,19 @@ Fences <- fortify(Fences) %>%
 sub_2018 <- list()
 Fences_norm <- data.frame()
 sub_2018_df <- data.frame()
+avg_sub <- data.frame()
 for (i in 1:length(Elevation_fill)) {
-  blocks <- c('A', 'B', 'C')
-  sub_2018[[i]] <- as(Elevation_fill[[i]][[10]] - Elevation_fill[[i]][[1]], "SpatialPixelsDataFrame") %>%
+  block.names <- c('A', 'B', 'C')
+  sub_2018[[i]] <- as(Elevation_fill[[i]][[10]] - Elevation_fill[[i]][[1]], "SpatialPixelsDataFrame")
+  temp_sub <- sub_2018[[i]] %>%
     as.data.frame() %>%
     rename(subsidence = layer) %>%
     mutate(year = 2018,
-           block = blocks[i])
-  min.coords <- sub_2018[[i]] %>%
+           block = block.names[i])
+  min.coords <- temp_sub %>%
     summarize(x.min = min(x),
               y.min = min(y))
-  temp_sub <- sub_2018[[i]] %>%
+  temp_sub <- temp_sub %>%
     mutate(long.norm = round(x - min.coords$x.min),
            lat.norm = round(y - min.coords$y.min))
   sub_2018_df <- sub_2018_df %>%
@@ -91,15 +95,19 @@ for (i in 1:length(Elevation_fill)) {
            dummy = '')
   Fences_norm <- Fences_norm %>%
     rbind.data.frame(temp_fences)
+    avg_sub <- avg_sub %>%
+      rbind.data.frame(data.frame(year = 2018, 
+                                  block = block.names[i], 
+                                  avg.sub = cellStats(raster(sub_2018[[i]]), mean, na.rm = TRUE)))
   rm(i, temp_fences, temp_sub)
 }
 
 
 subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsidence)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
-  geom_path(data = Fences_norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
+  geom_path(data = Fences_norm, aes(x = long.norm, y = lat.norm, group = group, color = dummy), inherit.aes = FALSE) +
+  # geom_text(data = avg_sub, aes(x = 11, y = 37.5, label = paste('Avg Sub = ', round(avg.sub, 2), 'm')), inherit.aes = FALSE) +
   facet_grid(. ~ block) +
-  coord_fixed() +
   theme_few() +
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
                      limits = c(-1.0, 0.2),
@@ -112,9 +120,10 @@ subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsiden
         plot.title = element_text(hjust = 0.5),
         axis.title.x = element_text(size = 10),
         axis.title.y = element_text(size = 10)) +
+  coord_fixed() +
   ggtitle('10 Years of Subsidence at CiPEHR/DryPEHR')
 
 subsidence_map
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.jpg')
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.pdf')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.jpg', width = 8, height = 3.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.pdf', width = 8, height = 3.5)

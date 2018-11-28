@@ -496,8 +496,8 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
 
 
 mixed.model.graph
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg")
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf")
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg", width = 6, height = 6)
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf", width = 6, height = 6)
 
 # ALT vs. subsidence adjusted ALT by plot
 g2 <- ggplot(ALTsubgraph, aes(x = year, y = ALT, color = Measurement_Type)) +
@@ -528,7 +528,7 @@ g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)
   geom_point(size = 2) +
   geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
   scale_color_manual(values = c("#000000", "#ff0000"),
-                     labels = c('ALT', 'Subsidence Adjusted ALT')) +
+                     labels = c('ALT', 'Subsidence\nAdjusted ALT')) +
   scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
                      name = '') +
   scale_y_continuous(name = 'ALT (cm)') +
@@ -540,13 +540,13 @@ g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)
         axis.title.y = element_text(size = 16),
         axis.text.y = element_text(size = 12),
         legend.text = element_text(size = 12),
-        title = element_text(size = 20),
+        title = element_text(size = 18),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12))
 g3
-# ggsave(plot = g3, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.jpg", height = 8, width = 12)
-# ggsave(plot = g3, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.pdf", height = 8, width = 12)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.jpg', plot = g3, height = 6, width = 8.5)
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.pdf", plot = g3, height = 6, width = 8.5)
 
 # soil profile graphs
 # colors needed

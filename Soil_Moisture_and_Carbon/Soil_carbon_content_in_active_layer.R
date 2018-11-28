@@ -3,6 +3,7 @@
 ###                                                 HGR 7/2018                                                                   ###
 ####################################################################################################################################
 
+# I need to select ALT in addition to ALT.corrected and carry that through to the end!
 # load libraries
 library(tidyverse)
 library(readxl)
@@ -90,27 +91,59 @@ carbonchange <- carbon09 %>%
          thickness = (depth1 - depth0),
          ALT.ratio.2009 = ALT.ratio.2009/100,
          ALT.ratio.2018 = ALT.ratio.2018/100,
+         ALT.control.2009 = ALT.control.2009/100,
+         ALT.control.2018 = ALT.control.2018/100,
          mean.C = ifelse(is.finite(mean.C),
                          mean.C,
                          nth(mean.C, 9)),
          mean.bd = ifelse(is.finite(mean.bd),
                          mean.C,
                          nth(mean.bd, 9)),
-         avail.c.09 = ifelse(ALT.ratio.2009 > depth1,
+         avail.c.09.ratio = ifelse(ALT.ratio.2009 > depth1,
                                   mean.C*mean.bd*thickness*10^4, # calculate gC/m^2 lost (mean.C (%) * bd (g/cm^3) * depth (cm) * 10^4 (cm^2/m^2))
                                   ifelse(ALT.ratio.2009 > depth0 & ALT.ratio.2009 < depth1,
                                          mean.C*mean.bd*(ALT.ratio.2009-depth0)*10^4,
                                          NA)),
-         avail.c.18 = ifelse(ALT.ratio.2018 > depth1 & depth1 != 1,
+         avail.c.18.ratio = ifelse(ALT.ratio.2018 > depth1 & depth1 != 1,
                                   mean.C*mean.bd*thickness*10^4,
                                   ifelse(ALT.ratio.2018 > depth0 & ALT.ratio.2018 < depth1 | ALT.ratio.2018 > depth1 & depth1 == 1,
                                          mean.C*mean.bd*(ALT.ratio.2018-depth0)*10^4,
-                                         NA))) %>%
-  summarise(tot.C.09 = sum(avail.c.09, na.rm = TRUE),
-            tot.C.18 = sum(avail.c.18, na.rm = TRUE)) %>%
-  mutate(diff = tot.C.18-tot.C.09)
+                                         NA)),
+         avail.c.09.control = ifelse(ALT.control.2009 > depth1,
+                                   mean.C*mean.bd*thickness*10^4, # calculate gC/m^2 lost (mean.C (%) * bd (g/cm^3) * depth (cm) * 10^4 (cm^2/m^2))
+                                   ifelse(ALT.control.2009 > depth0 & ALT.control.2009 < depth1,
+                                          mean.C*mean.bd*(ALT.control.2009-depth0)*10^4,
+                                          NA)),
+         avail.c.18.control = ifelse(ALT.control.2018 > depth1 & depth1 != 1,
+                                   mean.C*mean.bd*thickness*10^4,
+                                   ifelse(ALT.control.2018 > depth0 & ALT.control.2018 < depth1 | ALT.control.2018 > depth1 & depth1 == 1,
+                                          mean.C*mean.bd*(ALT.control.2018-depth0)*10^4,
+                                          NA)),
+         Se.C.09.ratio = ifelse(!is.na(avail.c.09.ratio),
+                          cumsum(se.C^2),
+                          NA),
+         Se.C.18.ratio = ifelse(!is.na(avail.c.18.ratio),
+                         cumsum(se.C^2),
+                         NA),
+         Se.C.09.control = ifelse(!is.na(avail.c.09.control),
+                                cumsum(se.C^2),
+                                NA),
+         Se.C.18.control = ifelse(!is.na(avail.c.18.control),
+                                cumsum(se.C^2),
+                                NA)) %>%
+  summarise(tot.C.09.ratio = sum(avail.c.09.ratio, na.rm = TRUE),
+            tot.C.18.ratio = sum(avail.c.18.ratio, na.rm = TRUE),
+            tot.C.09.control = sum(avail.c.09.control, na.rm = TRUE),
+            tot.C.18.control = sum(avail.c.18.control, na.rm = TRUE),
+            Se.09.ratio = max(Se.C.09.ratio, na.rm = TRUE),
+            Se.18.ratio = max(Se.C.18.ratio, na.rm = TRUE),
+            Se.09.control = max(Se.C.09.control, na.rm = TRUE),
+            Se.18.control = max(Se.C.18.control, na.rm = TRUE)) %>%
+  mutate(diff.ratio = tot.C.18.ratio-tot.C.09.ratio,
+         diff.control = )
   
-# write.csv(carbonchange, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
+# write.csv(carbonchange, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv', row.names = FALSE)
+carbonchange <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
 
 # plot
 thawed.carbon <- ggplot(carbonchange, aes(x = treatment, y = diff)) +
