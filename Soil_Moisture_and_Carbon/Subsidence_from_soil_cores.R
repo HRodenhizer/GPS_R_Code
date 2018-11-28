@@ -272,6 +272,10 @@ g1
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_Core_vs_GPS_Subsidence.jpeg', g1)
 
 t.test(sub_comparison$sub.diff.ash)
+
+ggplot(sub_comparison, aes(x = soil.core.sub.ash, y = GPS.sub, colour = treatment)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1)
 ####################################################################################################################################
 
 ### How much does each depth increment contribute to subsidence? ###################################################################

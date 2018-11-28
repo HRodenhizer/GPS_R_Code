@@ -102,7 +102,7 @@ subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsiden
   coord_fixed() +
   theme_few() +
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.5),
+                     limits = c(-1.0, 0.2),
                      direction = -1) +
   scale_color_manual('Snow Fence',
                      values = 'black') +
