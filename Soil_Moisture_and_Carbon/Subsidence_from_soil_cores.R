@@ -272,10 +272,38 @@ g1
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_Core_vs_GPS_Subsidence.jpeg', g1)
 
 t.test(sub_comparison$sub.diff.ash)
+model <- lm(GPS.sub ~ soil.core.sub.ash, data = sub_comparison)
+sub_comparison <- sub_comparison %>%
+  mutate(fit = model$coefficients[1] + model$coefficients[2]*soil.core.sub.ash)
 
-ggplot(sub_comparison, aes(x = soil.core.sub.ash, y = GPS.sub, colour = treatment)) +
+g2 <- ggplot(sub_comparison, aes(x = soil.core.sub.ash, y = GPS.sub, colour = treatment)) +
   geom_point() +
-  geom_abline(intercept = 0, slope = 1)
+  geom_line(aes(x = soil.core.sub.ash, y = fit), inherit.aes = FALSE) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  scale_color_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  scale_x_continuous(name = 'Soil Core Subsidence (cm)',
+                     limits = c(-45, 25)) +
+  scale_y_continuous(name = 'GPS Subsidence (cm)',
+                     limits = c(-45, 25)) +
+  ggtitle('Comparison of Subsidence Calculation Methods') +
+  coord_fixed() +
+  theme_few() +
+  theme(legend.title=element_blank(),
+        axis.title.x = element_text(size = 16),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 18),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+g2
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.jpg')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.pdf')
 ####################################################################################################################################
 
 ### How much does each depth increment contribute to subsidence? ###################################################################
@@ -405,10 +433,9 @@ ash_profiles_model_ready <- ash_profiles %>%
          wholeplot = factor(block:fence2:treatment2),
          moisture = as.numeric(moisture)/1000, # kg/kg rather than g/kg to make the scale similar to other predictor variables
          bulk.density = as.numeric(bulk.density),
-         moisture2 = moisture^2,
          mean.ALT = mean.ALT/100, # change to m for better scale
-         mean.ALT2 = mean.ALT^2,
-         moisture1 = 1/moisture)
+         moisture1 = 1/moisture) %>%
+  select(year, fence, treatment, time, block, fence2, treatment2, fencegroup, wholeplot, group, ash.layer, bulk.density, moisture, moisture1, mean.subsidence, se.subsidence, mean.ALT, se.ALT)
 
 sub_ash_model_ready <- ash_profiles_model_ready %>%
   group_by(year, fence, treatment, group, time, block, fence2, treatment2, fencegroup, wholeplot, mean.subsidence, se.subsidence, mean.ALT, se.ALT) %>%

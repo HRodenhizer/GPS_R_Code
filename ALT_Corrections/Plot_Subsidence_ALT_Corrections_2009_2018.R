@@ -248,6 +248,7 @@ WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/C
                             ifelse(treatment == 'Drying + Warming',
                                    'Warming',
                                    as.character(treatment))))
+carbonchange <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
 
 # join WTD and sub by fence and treatment
 WTD_fence <- WTD %>%
@@ -295,7 +296,10 @@ ALTsubgraph2 <- ALTsubgraph %>%
             mean.ALT = mean(ALT, na.rm = TRUE),
             se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
-  arrange(year, treatment, desc(Measurement_Type))
+  arrange(year, treatment, desc(Measurement_Type)) %>%
+  mutate(sub.correction = ifelse(Measurement_Type == 'ALT',
+                                 'Raw',
+                                 'Subsidence Adjusted'))
 
 # a summarized dataframe with WTD as well to make the soil profile figures
 ALTsub.summary <- ALTsub %>%
@@ -306,6 +310,16 @@ ALTsub.summary <- ALTsub %>%
   summarise(subsidence = mean(subsidence, na.rm = TRUE)*100,
             ALT = mean(ALT.corrected, na.rm = TRUE)) %>%
   full_join(WTD2, by = c('year', 'treatment'))
+
+# prep the carbon change data for graphing with ALT data
+avail_c <- carbonchange %>%
+  gather(key = type, value = avail.c, diff.ratio:se.raw) %>%
+  select(treatment, type, avail.c) %>%
+  separate(type, into = c('measurement', 'sub.correction')) %>%
+  spread(key = measurement, value = avail.c) %>%
+  mutate(sub.correction = ifelse(sub.correction == 'raw',
+                                 'Raw',
+                                 'Subsidence Adjusted'))
 ############################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
@@ -524,14 +538,16 @@ g2
 # ggsave(plot = g2, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018.pdf", height = 8, width = 12)
 
 # ALT vs. subsidence adjusted ALT by treatment
-g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)) +
+g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
   geom_point(size = 2) +
   geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
-  scale_color_manual(values = c("#000000", "#ff0000"),
-                     labels = c('ALT', 'Subsidence\nAdjusted ALT')) +
+  scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#000000", "#ff0000"),
+                     labels = c('ALT', 'Subsidence Adjusted\nALT')) +
   scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
                      name = '') +
-  scale_y_continuous(name = 'ALT (cm)') +
+  scale_y_continuous(name = 'ALT (cm)',
+                     limits = c(-150, 0)) +
   facet_grid(. ~ treatment) +
   ggtitle('Original and Subsidence Adjusted ALT') +
   theme_few() +
@@ -547,6 +563,43 @@ g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)
 g3
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.jpg', plot = g3, height = 6, width = 8.5)
 # ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.pdf", plot = g3, height = 6, width = 8.5)
+
+# ALT vs. subsidence adjusted ALT by treatment
+gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
+  geom_col(data = avail_c, aes(x = c(2018.25, 2017.75, 2018.25, 2017.75), y = diff/-4, fill = sub.correction), inherit.aes = FALSE) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
+  geom_errorbar(data = avail_c, aes(x = c(2018.25, 2017.75, 2018.25, 2017.75), ymin = (diff-se)/-4, ymax = (diff+se)/-4), inherit.aes = FALSE, width = 0.5) +
+  scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#000000", "#ff0000"),
+                     labels = c('Raw\nALT', 'Subsidence Adjusted\nALT')) +
+  scale_fill_manual(breaks = c('Raw', 'Subsidence Adjusted'),
+                    values = c("#000000", "#ff0000"),
+                    labels = c('Raw\nThawed C', 'Subsidence Adjusted\n Thawed C')) +
+  scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
+                     name = '') +
+  scale_y_continuous(name = 'ALT (cm)',
+                     limits = c(-150, 0),
+                     sec.axis = sec_axis(~.*4, 
+                                         name = expression(Thawed~Carbon~(gC/m^2)),
+                                         labels = c(600, 400, 200, 0))) +
+  facet_grid(. ~ treatment) +
+  ggtitle('Apparent Permafrost Thaw Increases\nWhen Accounting for Subsidence') +
+  theme_few() +
+  theme(legend.title=element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 18),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+gtest
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest, height = 6, width = 9.5)
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest, height = 6, width = 9.5)
+
 
 # soil profile graphs
 # colors needed
@@ -615,6 +668,7 @@ g5
 
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.jpg")
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.pdf")
+
 cols <- c("LINE1"="#f04546","LINE2"="#3591d1","BAR"="#62c76b")
 ggplot(data=data,aes(x=a)) + 
   geom_bar(stat="identity", aes(y=h, fill = "BAR"),colour="#333333")+ #green
@@ -630,4 +684,28 @@ ggplot(data=data,aes(x=a)) +
   theme_bw() +
   theme(axis.title.x = element_text(size = 15, vjust=-.2)) +
   theme(axis.title.y = element_text(size = 15, vjust=0.3))
+
+g6 <- ggplot(ALTsub.summary, aes(x = ALT*-1, y = subsidence, colour = treatment)) +
+  geom_point() +
+  scale_color_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  scale_x_continuous(name = 'ALT') +
+  scale_y_continuous(name = 'Subsidence (cm)') +
+  ggtitle('Relationship Between ALT and Subsidence (cm)') +
+  theme_few() +
+  coord_fixed() +
+  theme(legend.title=element_blank(),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 18),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+g6
+
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.jpg")
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.pdf")
 ############################################################################################################
