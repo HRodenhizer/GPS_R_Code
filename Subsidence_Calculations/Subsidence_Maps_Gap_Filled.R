@@ -119,11 +119,12 @@ subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsiden
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
         axis.title.x = element_text(size = 10),
-        axis.title.y = element_text(size = 10)) +
+        axis.title.y = element_text(size = 10),
+        title = element_text(size = 16)) +
   coord_fixed() +
-  ggtitle('10 Years of Subsidence at CiPEHR/DryPEHR')
+  ggtitle('10 Years of Subsidence at CiPEHR')
 
 subsidence_map
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.jpg', width = 8, height = 3.5)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.pdf', width = 8, height = 3.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.jpg', width = 14, height = 5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.pdf', width = 14, height = 5)

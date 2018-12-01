@@ -287,7 +287,7 @@ g2 <- ggplot(sub_comparison, aes(x = soil.core.sub.ash, y = GPS.sub, colour = tr
                      limits = c(-45, 25)) +
   scale_y_continuous(name = 'GPS Subsidence (cm)',
                      limits = c(-45, 25)) +
-  ggtitle('Comparison of Subsidence Calculation Methods') +
+  ggtitle('Comparison of Subsidence Methods') +
   coord_fixed() +
   theme_few() +
   theme(legend.title=element_blank(),
@@ -302,8 +302,8 @@ g2 <- ggplot(sub_comparison, aes(x = soil.core.sub.ash, y = GPS.sub, colour = tr
         strip.text.y = element_text(size = 12))
 g2
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.jpg')
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.pdf')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.jpg', g2, height = 4, width = 6.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Method_Comparison.pdf', g2, height = 4, width = 6.5)
 ####################################################################################################################################
 
 ### How much does each depth increment contribute to subsidence? ###################################################################
@@ -564,7 +564,7 @@ par(mfrow=c(1,1))
 bd_m_a_model <- readRDS('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/bd_model.rds')
 bd_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/bd_model_coefs.csv')
 bd_model_r2 <- r.squaredGLMM(bd_m_a_model)
-summary(bd_model)
+summary(bd_m_a_model)
 
 ### Model subsidence ###############################################################################################################
 # I don't think I can actually include ALT, since it was used to determine subsidence - nothing is looking good.
@@ -712,7 +712,7 @@ m_model_ci <- extract_ci(m.model)
 
 ### Graph models ###################################################################################################################
 # bulk density
-bd_m_a_ribbon <- expand.grid(moisture = seq(min(ash_profiles_graph$moisture, na.rm = TRUE), max(ash_profiles_graph$moisture, na.rm = TRUE), length.out = 50),
+bd_m_a_ribbon <- expand.grid(moisture = seq(min(ash_profiles_model_ready$moisture, na.rm = TRUE), max(ash_profiles_model_ready$moisture, na.rm = TRUE), length.out = 50),
                               ash.layer = seq(5, 40, 5)) %>%
   mutate(moisture1 = moisture^-1,
          bd.lwr = bd_ci$min[1] + bd_ci$min[2]*ash.layer + bd_ci$min[3]*moisture1,
@@ -720,10 +720,10 @@ bd_m_a_ribbon <- expand.grid(moisture = seq(min(ash_profiles_graph$moisture, na.
          bd.fit = bd_ci$coefs[1] + bd_ci$coefs[2]*ash.layer + bd_ci$coefs[3]*moisture1)
 bd_m_a_r2 <- r.squaredGLMM(bd_m_a_model)
 
-bulk.density.moisture <- ggplot(ash_profiles_graph, aes(x = moisture, y = bulk.density, colour = ash.layer)) +
+bulk.density.moisture <- ggplot(ash_profiles_model_ready, aes(x = moisture, y = bulk.density, colour = ash.layer)) +
   geom_point() +
   geom_line(data = bd_m_a_ribbon, aes(x = moisture, y = bd.fit, group = ash.layer, colour = ash.layer), inherit.aes = FALSE) +
-  scale_color_gradient(name = 'Ash Layer (g)',
+  scale_color_gradient(name = 'Ash Normalized\nDepth (g ash)',
                        low = '#3399CC',
                        high = 'black',
                        guide = guide_legend(reverse = FALSE),
@@ -740,20 +740,21 @@ bulk.density.moisture <- ggplot(ash_profiles_graph, aes(x = moisture, y = bulk.d
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12)) +
+  ggtitle('Bulk Density Responds to Soil Moisture and Depth') +
   coord_fixed(ratio = 0.8) + 
-  annotate('text', x = 0.95, y = 1.9, label = paste('BD = ', round(bd_ci$coefs[1], 2), ' + ', round(bd_ci$coefs[2], 2), '(ash.layer) + ', round(bd_ci$coefs[3], 2), '(1/SM)', sep = '')) +
+  annotate('text', x = 0.95, y = 1.9, label = paste('BD = ', round(bd_ci$coefs[1], 2), ' - ', round(bd_ci$coefs[2], 2)*-1, '(Ash Depth) + ', round(bd_ci$coefs[3], 2), '(1/SM)', sep = '')) +
   annotate('text', x = 1.325, y = 1.8, label = paste0("~R^2~c==", round(as.numeric(bd_m_a_r2[2]), 2)), parse = TRUE)
 
 bulk.density.moisture
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Denisty_Moisture_Mixed_Effects_power_2018.jpg', bulk.density.moisture)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Moisture_Mixed_Effects_power_2018.pdf', bulk.density.moisture)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Denisty_Moisture_Mixed_Effects_power_2018.jpg', bulk.density.moisture, height = 6, width = 7.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Moisture_Mixed_Effects_power_2018.pdf', bulk.density.moisture, height = 6, width = 7.5)
 
 # subsidence
 ggplot(ash_profiles_graph, aes(x = mean.ALT, y = mean.subsidence)) +
   geom_point()
 
-subsidence <- ggplot(ash_profiles_graph, aes(x = mean.ALT, y = mean.subsidence, colour = bulk.density)) +
+subsidence <- ggplot(ash_profiles_model_ready, aes(x = mean.ALT, y = mean.subsidence, colour = bulk.density)) +
   geom_point() +
   geom_line(data = bd_m_a_ribbon, aes(x = moisture, y = bd.fit, group = ash.layer, colour = ash.layer), inherit.aes = FALSE) +
   scale_color_gradient(name = 'Ash Layer (g)',

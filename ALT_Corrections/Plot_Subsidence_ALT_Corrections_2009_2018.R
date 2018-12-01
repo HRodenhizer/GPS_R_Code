@@ -314,7 +314,7 @@ ALTsub.summary <- ALTsub %>%
 # prep the carbon change data for graphing with ALT data
 avail_c <- carbonchange %>%
   gather(key = type, value = avail.c, diff.ratio:se.raw) %>%
-  select(treatment, type, avail.c) %>%
+  dplyr::select(treatment, type, avail.c) %>%
   separate(type, into = c('measurement', 'sub.correction')) %>%
   spread(key = measurement, value = avail.c) %>%
   mutate(sub.correction = ifelse(sub.correction == 'raw',
@@ -433,6 +433,7 @@ subpoints.fit <- subpointsC %>%
 # data needed for graphs
 model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
 subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv')
+model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 subpoints.ci <- data.frame(time = rep(seq(0, 9, length.out = 2), 2),
                            treatment = c(rep('Control', 2), rep('Warming', 2))) %>%
   mutate(lwr = ifelse(treatment == 'Control',
@@ -444,7 +445,6 @@ subpoints.ci <- data.frame(time = rep(seq(0, 9, length.out = 2), 2),
          fit = ifelse(treatment == 'Control',
                       model2_ci$coefs[1] + model2_ci$coefs[2]*time,
                       model2_ci$coefs[1] + model2_ci$coefs[4] + (model2_ci$coefs[2] + model2_ci$coefs[3])*time))
-model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 model2_r2 <- r.squaredGLMM(model2)
 
 # plots
@@ -499,13 +499,13 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
         axis.title.y = element_text(size = 16),
         axis.text.y = element_text(size = 12),
         legend.text = element_text(size = 12),
-        title = element_text(size = 18),
+        title = element_text(size = 16),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12)) +
   coord_fixed(ratio = 10) +
-  annotate('text', x = 7, y = 0.25, label = paste('y = ', round(model2_ci$coefs[1]*100, 2), ' + ', round(model2_ci$coefs[2]*100, 2), 'x', sep = ''), colour = "#006699") +
-  annotate('text', x = 1.7, y = -0.75, label = paste('y = ', round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), ' + ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*100, 2), 'x', sep = ''), colour = "#990000") +
+  annotate('text', x = 7, y = 0.25, label = paste('y = ', round(model2_ci$coefs[1]*100, 2), ' - ', round(model2_ci$coefs[2]*-100, 2), 'x', sep = ''), colour = "#006699") +
+  annotate('text', x = 1.7, y = -0.75, label = paste('y = ', round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 'x', sep = ''), colour = "#990000") +
   annotate('text', x = 1.05, y = 0.25, label = paste0("~R^2~c==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE)
 
 
@@ -572,10 +572,10 @@ gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction
   geom_errorbar(data = avail_c, aes(x = c(2018.25, 2017.75, 2018.25, 2017.75), ymin = (diff-se)/-4, ymax = (diff+se)/-4), inherit.aes = FALSE, width = 0.5) +
   scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#000000", "#ff0000"),
-                     labels = c('Raw\nALT', 'Subsidence Adjusted\nALT')) +
+                     labels = c('Raw\nALT', 'Subsidence\nAdjusted\nALT')) +
   scale_fill_manual(breaks = c('Raw', 'Subsidence Adjusted'),
                     values = c("#000000", "#ff0000"),
-                    labels = c('Raw\nThawed C', 'Subsidence Adjusted\n Thawed C')) +
+                    labels = c('Raw\nThawed C', 'Subsidence\nAdjusted\nThawed C')) +
   scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
                      name = '') +
   scale_y_continuous(name = 'ALT (cm)',
@@ -628,14 +628,16 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   scale_y_continuous(limits = c(-175, 10),
                      expand = c(0,0),
                      name = 'Depth (cm)') +
+  ggtitle('Changes in the Soil Profile Through Time') +
   theme_few() +
   theme(strip.text.x = element_text(size = 12),
-        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12))
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
+        title = element_text(size = 16))
 
 g4
 
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.jpg")
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.pdf")
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.jpg", height = 6, width = 7.5)
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.pdf", height = 6, width = 7.5)
 
 # Cross section of soil by fence
 g5 <- ggplot(ALTsub_fence, aes(x = year)) +
@@ -690,11 +692,10 @@ g6 <- ggplot(ALTsub.summary, aes(x = ALT*-1, y = subsidence, colour = treatment)
   scale_color_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),
                      name = '') +
-  scale_x_continuous(name = 'ALT') +
+  scale_x_continuous(name = 'ALT (cm)') +
   scale_y_continuous(name = 'Subsidence (cm)') +
-  ggtitle('Relationship Between ALT and Subsidence (cm)') +
+  ggtitle('Relationship Between ALT and Subsidence') +
   theme_few() +
-  coord_fixed() +
   theme(legend.title=element_blank(),
         axis.text.x  = element_text(size = 12),
         axis.title.y = element_text(size = 16),
@@ -706,6 +707,6 @@ g6 <- ggplot(ALTsub.summary, aes(x = ALT*-1, y = subsidence, colour = treatment)
         strip.text.y = element_text(size = 12))
 g6
 
-# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.jpg")
-# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.pdf")
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.jpg", height = 4, width = 7)
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.pdf", height = 4, width = 7)
 ############################################################################################################
