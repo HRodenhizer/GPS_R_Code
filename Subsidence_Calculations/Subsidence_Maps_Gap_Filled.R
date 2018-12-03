@@ -122,7 +122,7 @@ subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsiden
         axis.title.y = element_text(size = 10),
         title = element_text(size = 16)) +
   coord_fixed() +
-  ggtitle('10 Years of Subsidence at CiPEHR')
+  ggtitle('9 Years of Subsidence at CiPEHR')
 
 subsidence_map
 
