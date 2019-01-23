@@ -423,19 +423,21 @@ for (i in 1:length(elevation.matrix)){
            theta = -70, 
            clim = c(zlower, zupper), 
            zlim = c(zlower, zupper), 
-           colkey = FALSE)
+           colkey = FALSE,
+           main = paste(2008+j))
     if (j == 10){
       for (k in 1:10){
         surf3D(x = x, 
                y = y, 
-               z = elevation.matrix[[i]][[k]], 
-               colvar = elevation.matrix[[i]][[k]], 
+               z = elevation.matrix[[i]][[10]], 
+               colvar = elevation.matrix[[i]][[10]], 
                col = viridis(1024, begin = 0, end = 1), 
                phi = 60, 
                theta = -70, 
                clim = c(zlower, zupper), 
                zlim = c(zlower, zupper), 
-               colkey = FALSE)
+               colkey = FALSE,
+               main = '2018')
       }
     }
   }
