@@ -43,99 +43,6 @@ Elevation <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
 ALTsub <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv')
 ####################################################################################################################################
 
-### Format 2017 data and combine with rest of data #################################################################################
-# for (i in 1:nrow(soil_17)){
-#   if (!is.na(soil_17$depth[i])) {
-#     next # do nothing if there is a depth listed
-#   } else {
-#     soil_17$depth[i] <- soil_17$depth[i-1] # if no depth is listed, find the last depth and put that in
-#   }
-#   rm(i)
-# }
-# 
-# soil_17 <- soil_17 %>%
-#   filter(`sub-smp` == 'all' | `sub-smp` == 'CN/mstr') %>% # these rows contain the bulk density and moisture measurements I need
-#   select(1:3, 5, 7, 18:19) %>% # these are the columns I want
-#   mutate(year = 2017, # make some more columns of necessary information
-#          block = ifelse(Fence <= 2,
-#                         1,
-#                         ifelse(Fence == 3 | Fence == 4,
-#                                2,
-#                                3)),
-#          treatment = ifelse(plot <= 4,
-#                             'c',
-#                             'w')) %>%
-#   select(year, block, fence = Fence, plot, treatment, depth.cat = depth, moisture = Moisture, bulk.density = `Bulk density`) %>% # rename and select to be consistent with earlier soil core data
-#   group_by(year, block, fence, plot, treatment, depth.cat) %>%
-#   summarise(moisture = max(moisture, na.rm = TRUE), # this essentially combines the two rows (one with bulk density, one with moisture) into one
-#             bulk.density = max(bulk.density, na.rm = TRUE)) %>%
-#   separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>% # make depth columns for the lower and upper depths of a core section
-#   mutate(depth0 = as.numeric(depth0), # make sure the depths are numbers not text
-#          depth1 = as.numeric(depth1)) %>%
-#   arrange(year, block, fence, plot, depth0) # order the data in a way that makes sense
-# 
-# group <-  soil_17 %>%
-#   group_by(year, fence, plot, treatment) %>%
-#   group_indices('year', 'fence', 'plot', 'treatment')
-# 
-# soil_17 <- soil_17 %>%
-#   cbind.data.frame(group) %>%
-#   group_by(year, fence, plot, treatment)
-# 
-# depths <- c(0, seq(5, 95, 10), 100) # these are the standardized depths we want, but currently don't have
-# 
-# this next for loop is not working yet, but until there is ash data available for 2017, it doesn't really matter anyway
-# soil_17_2 <- data.frame()
-# for (i in 1:n_groups(soil_17)) {
-#   temp <- subset(soil_17, group == i)
-#   for (k in 1:nrow(temp)) {
-#     print(paste('k =', k))
-#     if (depths[k] == soil_17$depth0[k] & depths[k+1] == soil_17$depth1[k]) {
-#       print('no change needed')
-#       next
-#     } else if (depths[k] != soil_17$depth0[k] & depths[k+1] == soil_17$depth1[k] | depths[k] != soil_17$depth0[k] & depths[k+1] < soil_17$depth1[k]) {# if only the upper depth is incorrect, or the upper depth is incorrect and the lower depth is too big
-#       if (depths[k] > soil_17$depth0[k]) {# if the recorded depth is less than the standardized depth for the upper depth
-#         print('option 1')
-#         temp$depth0[k] <- depths[k]
-#         temp$depth1[k] <- depths[k+1]
-#         temp$depth.cat[k] <- paste(temp$depth0[k], temp$depth1[k], sep = '-')
-#       } else {# if the recorded depth is greater than the standardized depth for the upper depth
-#         print('option 2')
-#         temp$moisture[k] <- ((temp$depth0[k] - depths[k]) * temp$moisture[k-1] + (temp$depth1[k] - temp$depth0[k]) * temp$moisture[k])/(depths[k+1] - depths[k]) # add the weighted moisture from the previous soil section
-#         temp$bulk.density[k] <- ((temp$depth0[k] - depths[k]) * temp$bulk.density[k-1] + (temp$depth1[k] - temp$depth0[k]) * temp$bulk.density[k])/(depths[k+1] - depths[k]) # add the weighted bulk density from the previous soil section
-#         temp$depth0[k] <- depths[k]
-#         temp$depth1[k] <- depths[k+1]
-#         temp$depth.cat[k] <- paste(temp$depth0[k], temp$depth1[k], sep = '-')
-#       }
-#     } else if (depths[k] == soil_17$depth0[k] & depths[k+1] != soil_17$depth1[k] | depths[k] > soil_17$depth0[k] & depths[k+1] != soil_17$depth1[k]) {# if only the lower depth is incorrect, or if the lower depth is incorrect and the upper depth is too small
-#       if (depths[k+1] > soil_17$depth1[k]) {# if the recorded depth is less than the standardized depth for the lower depth
-#         print('option 3')
-#         temp$moisture[k] <- ((temp$depth1[k] - temp$depth0[k]) * temp$moisture[k] + (depths[k+1] - temp$depth1[k]) * temp$moisture[k])/(depths[k+1] - depths[k]) # add the weighted moisture from the next soil section
-#         temp$bulk.density[k] <- ((temp$depth1[k] - temp$depth0[k]) * temp$bulk.density[k] + (depths[k+1] - temp$depth1[k]) * temp$bulk.density[k])/(depths[k+1] - depths[k]) # add the weighted bulk density from the next soil section
-#         temp$depth0[k] <- depths[k]
-#         temp$depth1[k] <- depths[k+1]
-#         temp$depth.cat[k] <- paste(temp$depth0[k], temp$depth1[k], sep = '-')
-#       } else {# if the recorded depth is greater than the standardized depth for the lower depth
-#         print('option 4')
-#         temp$depth0[k] <- depths[k]
-#         temp$depth1[k] <- depths[k+1]
-#         temp$depth.cat[k] <- paste(temp$depth0[k], temp$depth1[k], sep = '-')
-#       }
-#     } else {# if upper is too big and lower is too small
-#       print('option 5')
-#       temp$moisture[k] <- ((temp$depth0[k] - depths[k]) * temp$moisture[k-1] + (temp$depth1[k] - temp$depth0[k]) * temp$moisture[k] + (depths[k+1] - temp$depth1[k]) * temp$moisture[k])/(depths[k+1] - depths[k]) # add the weighted moisture from the next soil section
-#       temp$bulk.density[k] <- ((temp$depth0[k] - depths[k]) * temp$bulk.density[k-1] + (temp$depth1[k] - temp$depth0[k]) * temp$bulk.density[k] + (depths[k+1] - temp$depth1[k]) * temp$bulk.density[k])/(depths[k+1] - depths[k]) # add the weighted bulk density from the next soil section
-#       temp$depth0[k] <- depths[k]
-#       temp$depth1[k] <- depths[k+1]
-#       temp$depth.cat[k] <- paste(temp$depth0[k], temp$depth1[k], sep = '-')
-#     }
-#   }
-#   soil_17_2 <- rbind.data.frame(soil_17_2, temp) %>%
-#     distinct
-# }
-# 
-####################################################################################################################################
-
 ### functions necessary for following code #########################################################################################
 calc_ash_depth <- function(x) {
   if (x$year[1] == x$year.min.mass[1]) {
@@ -218,6 +125,33 @@ soil_core_sub_2 <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatmen
   full_join(soil_core_sub, by = c('block', 'fence', 'treatment'))
 
 ####################################################################################################################################
+
+#### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
+carbon_loss_model <- lm(soil.core.sub.ash ~ soil.core.sub.soil, soil_core_sub_2)
+summary(carbon_loss_model)
+sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = soil.core.sub.ash)) +
+  geom_abline(slope = 1, linetype = 2) +
+  geom_smooth(method = "lm", color = "black") +
+  geom_point(aes(color = treatment)) +
+  scale_color_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  theme_few() +
+  coord_fixed() +
+  xlab("Subsidence (without carbon loss)") +
+  ylab("Subsidence (with carbon loss)") +
+  ggtitle('Carbon Loss Contributes to Subsidence') +
+  annotate('text', x = -25, y = 18, 
+           label = paste('y = ', round(carbon_loss_model$coefficients[1], 2), '+ ', round(carbon_loss_model$coefficients[2], 2), 'x', sep = ''), 
+           size = 6) +
+  theme(axis.title.x = element_text(size = 16),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 18))
+sub_carbon_fig
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 8, width = 6.5)
 
 ### compare soil core subsidence with gps subsidence at that location ##############################################################
 Subsidence09_13 <- list()
