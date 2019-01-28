@@ -423,21 +423,23 @@ for (i in 1:length(elevation.matrix)){
            theta = -70, 
            clim = c(zlower, zupper), 
            zlim = c(zlower, zupper), 
-           colkey = FALSE,
-           main = paste(2008+j))
+           colkey = FALSE)
+    title(paste(2008+j), line = -10)
+    image_crop(img, geometry_area(600, 600, 250, 200), repage = FALSE)
     if (j == 10){
       for (k in 1:10){
         surf3D(x = x, 
                y = y, 
-               z = elevation.matrix[[i]][[10]], 
-               colvar = elevation.matrix[[i]][[10]], 
+               z = elevation.matrix[[i]][[j]], 
+               colvar = elevation.matrix[[i]][[j]], 
                col = viridis(1024, begin = 0, end = 1), 
                phi = 60, 
                theta = -70, 
                clim = c(zlower, zupper), 
                zlim = c(zlower, zupper), 
-               colkey = FALSE,
-               main = '2018')
+               colkey = FALSE)
+        title(paste(2008+j), line = -10)
+        image_crop(img, geometry_area(600, 600, 250, 200), repage = FALSE)
       }
     }
   }
@@ -450,5 +452,25 @@ print(elevation.3D[[2]])
 print(elevation.3D[[3]])
 
 # for (i in 1:length(elevation.3D)) {
-#   image_write(elevation.3D[[i]], paste('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/', c('A', 'B', 'C')[i], 'elevation.gif', sep = ''))
+#   image_write(elevation.3D[[i]], paste('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/', c('A', 'B', 'C')[i], 'elevation_v2.gif', sep = ''))
 # }
+img <- image_graph(500, 500, res = 96)
+zlower <- min(elevation.matrix[[1]][[10]], na.rm = TRUE) - 0.3
+zupper <- max(elevation.matrix[[1]][[1]], na.rm = TRUE) + 0.3
+nlong <- as.numeric(dim(elevation.matrix[[1]][[10]])[2])
+nlat <- as.numeric(dim(elevation.matrix[[1]][[10]])[1])
+x <- matrix(rep(seq(0, nlong-1, by = 1), nlat), ncol = nlong, byrow = TRUE)
+y <- matrix(rep(seq(nlat-1, 0, by = -1), nlong), ncol = nlong)
+surf3D(x = x, 
+       y = y, 
+       z = elevation.matrix[[1]][[10]], 
+       colvar = elevation.matrix[[1]][[10]], 
+       col = viridis(1024, begin = 0, end = 1), 
+       phi = 60, 
+       theta = -70, 
+       clim = c(zlower, zupper), 
+       zlim = c(zlower, zupper), 
+       colkey = FALSE)
+title(paste(2008+10), line = -5)
+image_crop(img, geometry_area(300, 300, 125, 100), repage = FALSE)
+dev.off()
