@@ -65,6 +65,43 @@ calc_ash_depth <- function(x) {
   data.frame(return(depth))
 }
 
+test.function <- function(x) {
+  i <- 0 # keeps track of rows in new data frame
+  j <- 0 # keeps track of rows in old data frame
+  depth.index <- x$depth1[1] # keeps track of the depth in the soil profile (so as not to iterate beyond the depth of data)
+  bulk.density.2 <- c() # empty vector to hold bd later
+  depth.2 <- c() # empty vector to hold depth later
+  ash.mass.2 <- c() # empty vector to hold ash mass later
+  while (depth.index < max(x$depth1)) { # repeat this chunk of code so long as the depth you are looking at isn't beyond the range of depths
+    i <- i + 1 # each time you go through this while loop once, you add a row to the output dataframe. This allows you to keep track of how many rows there are.
+    j <- j + 1 # j keeps track of the row number in the old data frame, so it increases here and in the next while loop
+    bd.tot <- 0
+    print(paste("i =", i))
+    while (depth.index <= max(x$depth1) & x$ash.mass.tot[j] < 5*i) { # this gets mad when j is outside of the bounds of the group within x
+      if (x$ash.mass.tot[j] > 5*(i-1)) { # this if else needs to include what to do in case that the whole ash layer is within one depth layer!
+        bd.tot <- bd.tot + x$bulk.density[j]*(x$ash.mass.tot[j] - 5*(i-1))
+      } else {
+        bd.tot <- bd.tot + x$bulk.density[j]*x$ash.mass[j]
+      }
+      j <- j + 1
+      print(paste("j =", j))
+      depth.index <- x$depth1[j]
+      if (j > nrow(x)) { # this isn't working the way I want it to!
+        break
+      }
+    }
+    bulk.density.2[i] <- (bd.tot + x$bulk.density[j]*(5*i - x$ash.mass.tot[j-1]))/5
+    depth.2[i] <- x$depth1[j] - (x$depth1[j] - x$depth0[j])*(x$ash.mass.tot[j] - 5*i)/x$ash.mass[j]
+    ash.mass.2[i] <- 5*i
+    if (x$ash.mass.tot[j] > 5*i) {
+      j <- j - 1
+    }
+    depth.index <- x$depth1[j]
+  }
+  all <- cbind(ash.mass.2, depth.2, bulk.density.2)
+  data.frame(return(all))
+}
+
 calc_soil_depth <- function(x) {
   if (x$year[1] == x$year.min.mass[1]) {
     depth <- x$max.depth[1]
@@ -124,6 +161,7 @@ soil_core_sub_2 <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatmen
   select(-depth.2009, -depth.2013) %>%
   full_join(soil_core_sub, by = c('block', 'fence', 'treatment'))
 
+test <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), test.function)
 ####################################################################################################################################
 
 #### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
