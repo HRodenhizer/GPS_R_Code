@@ -129,17 +129,3 @@ subsidence_map
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.jpg', width = 14, height = 5)
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2018.pdf', width = 14, height = 5)
 ############################################################################################################
-
-### Make gif of subsidence #################################################################################
-filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/From_2009/', full.names = TRUE)
-subsidence <- list(stack(c(filenames[1], filenames[2], filenames[3], filenames[4], filenames[5])), stack)
-
-subsidence <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
-Fences <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Fences.shp')
-Fences <- fortify(Fences) %>%
-  mutate(fence = as.numeric(id) + 1,
-         block = ifelse(fence <= 2,
-                        'A',
-                        ifelse(fence >= 5,
-                               'C',
-                               'B')))

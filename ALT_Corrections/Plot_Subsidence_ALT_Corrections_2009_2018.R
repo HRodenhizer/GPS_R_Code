@@ -248,7 +248,7 @@ WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/C
                             ifelse(treatment == 'Drying + Warming',
                                    'Warming',
                                    as.character(treatment))))
-carbonchange <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
+thawedc <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Thawed_Carbon_w_sub.csv')
 
 # join WTD and sub by fence and treatment
 WTD_fence <- WTD %>%
@@ -312,14 +312,17 @@ ALTsub.summary <- ALTsub %>%
   full_join(WTD2, by = c('year', 'treatment'))
 
 # prep the carbon change data for graphing with ALT data
-avail_c <- carbonchange %>%
-  gather(key = type, value = avail.c, diff.ratio:se.raw) %>%
-  dplyr::select(treatment, type, avail.c) %>%
+avail_c <- thawedc %>%
+  gather(key = type, value = avail.c, totC.raw:Se.ratio) %>%
   separate(type, into = c('measurement', 'sub.correction')) %>%
   spread(key = measurement, value = avail.c) %>%
   mutate(sub.correction = ifelse(sub.correction == 'raw',
                                  'Raw',
                                  'Subsidence Adjusted'))
+
+diff <- thawedc %>%
+  mutate(diff = totC.ratio - totC.raw,
+         Se.diff = sqrt(Se.ratio^2 + Se.raw^2))
 ############################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
@@ -479,39 +482,66 @@ g1
 mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour = treatment)) +
   geom_ribbon(data = subpoints.ci, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
   geom_point(alpha = 0.5) +
-  geom_abline(intercept = model2_ci$coefs[1], slope = model2_ci$coefs[2], colour = '#006699') +
-  geom_abline(intercept = model2_ci$coefs[1] + model2_ci$coefs[4], slope = model2_ci$coefs[2] + model2_ci$coefs[3], colour = '#990000') +
+  geom_segment (mapping=aes(x = 0, 
+                            y = model2_ci$coefs[1], 
+                            xend = 9, 
+                            yend = model2_ci$coefs[1] + model2_ci$coefs[2]*9), 
+                colour = '#006699') +
+  geom_segment (mapping=aes(x = 0, 
+                            y = model2_ci$coefs[1] + model2_ci$coefs[4], 
+                            xend = 9, 
+                            yend = model2_ci$coefs[1] + model2_ci$coefs[4] + (model2_ci$coefs[2] + model2_ci$coefs[3])*9), 
+                colour = '#990000') +
   scale_color_manual(values = c("#006699", "#990000"),
-                     labels = c('Control', 'Warming'),
+                     labels = c(paste('Control:  y = ', 
+                                      round(model2_ci$coefs[1]*100, 2), 
+                                      ' - ', 
+                                      round(model2_ci$coefs[2]*-100, 2), 
+                                      'x', 
+                                      sep = ''), 
+                                paste('Warming:  y = ', 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
+                                      ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 
+                                      'x', 
+                                      sep = '')),
                      name = '') +
   scale_fill_manual(values = c("#006699", "#990000"),
-                     labels = c('Control', 'Warming'),
+                    labels = c(paste('Control:  y = ', 
+                                     round(model2_ci$coefs[1]*100, 2), 
+                                     ' - ', 
+                                     round(model2_ci$coefs[2]*-100, 2), 
+                                     'x', 
+                                     sep = ''), 
+                               paste('Warming:  y = ', 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
+                                     ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 
+                                     'x', 
+                                     sep = '')),
                      name = '') +
-  scale_x_continuous(breaks = c(1, 3, 5, 7, 9),
-                     labels = c(2010, 2012, 2014, 2016, 2018),
+  scale_x_continuous(breaks = seq(0, 9),
+                     labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
   scale_y_continuous(name = 'Subsidence (cm)',
-                     breaks = c(-0.75, -0.50, -0.25, 0.00),
-                     labels = c(-75, -50, -25, 0)) +
-  ggtitle('Subsidence (Relative to 2009)') +
+                     breaks = seq(-0.9, 0.1, .1),
+                     labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
-  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 16),
+  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.justification=c(0,0),
+        legend.position=c(0.01,0.01),
+        legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12)) +
   coord_fixed(ratio = 10) +
-  annotate('text', x = 7, y = 0.25, label = paste('y = ', round(model2_ci$coefs[1]*100, 2), ' - ', round(model2_ci$coefs[2]*-100, 2), 'x', sep = ''), colour = "#006699") +
-  annotate('text', x = 1.7, y = -0.75, label = paste('y = ', round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 'x', sep = ''), colour = "#990000") +
-  annotate('text', x = 1.05, y = 0.25, label = paste0("~R^2~c==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE)
+  annotate('text', x = 0.7, y = -0.7, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
 
 
 mixed.model.graph
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg", width = 6, height = 6)
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf", width = 6, height = 6)
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.jpg", width = 95, height = 115, units = 'mm')
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.pdf", width = 95, height = 115, units = 'mm')
 
 # ALT vs. subsidence adjusted ALT by plot
 g2 <- ggplot(ALTsubgraph, aes(x = year, y = ALT, color = Measurement_Type)) +
@@ -566,32 +596,31 @@ g3
 
 # ALT vs. subsidence adjusted ALT by treatment
 gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
-  geom_col(data = avail_c, aes(x = c(2018.25, 2017.75, 2018.25, 2017.75), y = diff/-4, fill = sub.correction), inherit.aes = FALSE) +
+  geom_col(data = diff, aes(x = year, y = diff/-1), color = 'grey35', inherit.aes = FALSE) +
   geom_point(size = 2) +
   geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
-  geom_errorbar(data = avail_c, aes(x = c(2018.25, 2017.75, 2018.25, 2017.75), ymin = (diff-se)/-4, ymax = (diff+se)/-4), inherit.aes = FALSE, width = 0.5) +
+  geom_errorbar(data = diff, aes(x = year, ymin = (diff-Se.diff)/-1, ymax = (diff + Se.diff)/-1), inherit.aes = FALSE, width = 0.5, position = 'dodge') +
   scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#000000", "#ff0000"),
-                     labels = c('Raw\nALT', 'Subsidence\nAdjusted\nALT')) +
-  scale_fill_manual(breaks = c('Raw', 'Subsidence Adjusted'),
-                    values = c("#000000", "#ff0000"),
-                    labels = c('Raw\nThawed C', 'Subsidence\nAdjusted\nThawed C')) +
-  scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
+                     labels = c('Raw ALT', 'ALT + Subsidence')) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
-  scale_y_continuous(name = 'ALT (cm)',
-                     limits = c(-150, 0),
-                     sec.axis = sec_axis(~.*4, 
-                                         name = expression(Thawed~Carbon~(gC/m^2)),
-                                         labels = c(600, 400, 200, 0))) +
+  scale_y_continuous(name = 'Total Permafrost Thaw Depth (cm)',
+                     limits = c(-150, 5),
+                     breaks = c(-150, -125, -100, -75, -50, -25, 0),
+                     labels = c(-150, '', -100, '', -50, '', 0),
+                     sec.axis = sec_axis(~.*1, 
+                                         name = expression(Delta~Thawed~Carbon~(kg~C/m^2)),
+                                         labels = c(150, 100, 50, 0))) +
   facet_grid(. ~ treatment) +
-  ggtitle('Apparent Permafrost Thaw Increases\nWhen Accounting for Subsidence') +
   theme_few() +
   theme(legend.title=element_blank(),
-        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 18),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.justification=c(0,0),
+        legend.position=c(0.01,0.01),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12))
@@ -603,41 +632,54 @@ gtest
 
 # soil profile graphs
 # colors needed
-color.names <- c('Subsidence', 'Active Layer Thickness', 'Water Table Depth', 'Permafrost')
-color <- c('Permafrost' = '#666666', 'Active Layer Thickness' = '#996633', 'Water Table Depth' = '#006699', 'Subsidence' = '#FFFFFF')
+names <- c('Subsidence', 'Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
+color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699', 'Subsidence' = '#FFFFFF')
+linetypes <- c('Permafrost' = 'solid', 'Unsaturated Active Layer' = 'solid', 'Saturated Active Layer' = 'solid', 'Subsidence' = 'dashed')
 
 # Cross section of soil for control and warming
 g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   facet_grid(. ~ treatment) +
-  geom_ribbon(aes(ymin = subsidence, ymax = 0, fill = 'Subsidence')) +
-  geom_ribbon(aes(ymin = -175, ymax = ALT, fill = 'Permafrost'), 
+  geom_ribbon(aes(ymin = subsidence, ymax = 0, fill = 'Subsidence', linetype = 'Subsidence'), 
+              color = "black") +
+  geom_ribbon(aes(ymin = -160, ymax = ALT, fill = 'Permafrost', linetype = 'Permafrost'), 
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence, fill = 'Active Layer Thickness'), 
+  geom_ribbon(aes(ymin = ALT, ymax = subsidence, fill = 'Unsaturated Active Layer', linetype = 'Unsaturated Active Layer'), 
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence + WTD, fill = 'Water Table Depth'), 
+  geom_ribbon(aes(ymin = ALT, ymax = subsidence + WTD, fill = 'Saturated Active Layer', linetype = 'Saturated Active Layer'), 
               colour = 'black') +
-  geom_path(aes(y = subsidence), size = 0.5) +
   geom_hline(yintercept = 0, linetype = 2) +
   scale_fill_manual(name = '',
                     values = color,
-                    breaks = color.names) +
-  scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
+                    breaks = names) +
+  scale_linetype_manual(name = '',
+                        values = linetypes,
+                        breaks = names) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      limits = c(2009, 2018),
                      expand = c(0,0),
                      name = '') +
-  scale_y_continuous(limits = c(-175, 10),
+  scale_y_continuous(limits = c(-160, 5),
+                     breaks = c(0, -25, -50, -75, -100, -125, -150),
+                     labels = c(0, '', -50, '', -100, '', -150),
                      expand = c(0,0),
                      name = 'Depth (cm)') +
-  ggtitle('Changes in the Soil Profile Through Time') +
   theme_few() +
-  theme(strip.text.x = element_text(size = 12),
-        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
-        title = element_text(size = 16))
+  theme(axis.title = element_text(size = 12),
+        axis.text = element_text(size = 8),
+        strip.text.x = element_text(size = 12, color = 'black'),
+        axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5, size = 8),
+        legend.justification=c(0,0),
+        legend.position=c(0,0),
+        legend.background = element_rect(color="grey30", size=.5),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 8),
+        panel.spacing = unit(1, "lines"))
 
 g4
 
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.jpg", height = 6, width = 7.5)
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.pdf", height = 6, width = 7.5)
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018_notitle.jpg", height = 150, width = 190, units = 'mm')
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018_notitle.pdf", height = 150, width = 190, units = 'mm')
 
 # Cross section of soil by fence
 g5 <- ggplot(ALTsub_fence, aes(x = year)) +

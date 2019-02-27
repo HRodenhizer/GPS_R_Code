@@ -42,7 +42,7 @@ C2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GP
 points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points.shp") %>%
   mutate(Elevation = Elevation-12.741669,
          GlobalElli = GlobalElli-12.741669)
-st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points_v2.shp")
+# st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points_v2.shp")
 
 ##############################Select data by block##############################
 #2018

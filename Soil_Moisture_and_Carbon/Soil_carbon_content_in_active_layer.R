@@ -36,7 +36,7 @@ ALTdata <- ALTsub.ratio %>%
 
 carbon09 <- soil_09_13 %>%
   filter(year == 2009) %>%
-  mutate(C = C/1000,
+  mutate(C = C/1000, # convert from g/kg to %
          treatment = ifelse(treatment == 'c',
                             'Control',
                             'Warming')) %>%
@@ -45,65 +45,62 @@ carbon09 <- soil_09_13 %>%
             se.C = sd(C, na.rm = TRUE)/sqrt(n()),
             mean.bd = mean(bulk.density, na.rm = TRUE),
             se.bd = sd(bulk.density, na.rm = TRUE)/sqrt(n())) %>%
+  ungroup() %>%
   arrange(treatment, depth0) %>%
-  left_join(ALTdata, by = c('year', 'treatment')) %>%
-  rename(ALT.raw.2009 = ALT.raw, ALT.ratio.2009 = ALT.ratio, sub.ratio.2009 = sub.ratio, se.ALT.raw.2009 = se.ALT.raw, se.ALT.ratio.2009 = se.ALT.ratio, se.sub.2009 = se.sub) %>%
-  left_join(subset(ALTdata, year == 2018), by = c('treatment')) %>%
-  rename(year = year.x, ALT.raw.2018 = ALT.raw, ALT.ratio.2018 = ALT.ratio, sub.ratio.2018 = sub.ratio, se.ALT.raw.2018 = se.ALT.raw, se.ALT.ratio.2018 = se.ALT.ratio, se.sub.2018 = se.sub) %>%
-  select(-year.y)
+  select(-year) %>%
+  full_join(ALTdata, by = c('treatment')) %>%
+  arrange(year, treatment)
 
 # calculate the difference in total c in active layer for 2009 and 2018
-carbonchange <- carbon09 %>%
-  group_by(treatment) %>%
+thawedc <- carbon09 %>%
+  filter(!is.na(mean.C)) %>%
+  group_by(year, treatment) %>%
   mutate(depth0 = depth0/100,
-         depth1 = depth1/100,
+         depth1 = ifelse(depth1 != 85,
+                         depth1/100,
+                         1.50),
          thickness = (depth1 - depth0),
-         ALT.ratio.2009 = ALT.ratio.2009/100,
-         ALT.ratio.2018 = ALT.ratio.2018/100,
-         ALT.raw.2009 = ALT.raw.2009/100,
-         ALT.raw.2018 = ALT.raw.2018/100,
-         mean.C = ifelse(is.finite(mean.C),
-                         mean.C,
-                         nth(mean.C, 9)),
-         mean.bd = ifelse(is.finite(mean.bd),
-                         mean.C,
-                         nth(mean.bd, 9)),
-         avail.c.09.ratio = ifelse(ALT.ratio.2009 > depth1,
-                                  mean.C*mean.bd*thickness*10^4, # calculate gC/m^2 lost (mean.C (%) * bd (g/cm^3) * depth (cm) * 10^4 (cm^2/m^2))
-                                  ifelse(ALT.ratio.2009 > depth0 & ALT.ratio.2009 < depth1,
-                                         mean.C*mean.bd*(ALT.ratio.2009-depth0)*10^4,
-                                         NA)),
-         avail.c.18.ratio = ifelse(ALT.ratio.2018 > depth1 & depth1 != 1,
-                                  mean.C*mean.bd*thickness*10^4,
-                                  ifelse(ALT.ratio.2018 > depth0 & ALT.ratio.2018 < depth1 | ALT.ratio.2018 > depth1 & depth1 == 1,
-                                         mean.C*mean.bd*(ALT.ratio.2018-depth0)*10^4,
-                                         NA)),
-         avail.c.09.raw = ifelse(ALT.raw.2009 > depth1,
-                                   mean.C*mean.bd*thickness*10^4, # calculate gC/m^2 lost (mean.C (%) * bd (g/cm^3) * depth (cm) * 10^4 (cm^2/m^2))
-                                   ifelse(ALT.raw.2009 > depth0 & ALT.raw.2009 < depth1,
-                                          mean.C*mean.bd*(ALT.raw.2009-depth0)*10^4,
-                                          NA)),
-         avail.c.18.raw = ifelse(ALT.raw.2018 > depth1 & depth1 != 1,
-                                   mean.C*mean.bd*thickness*10^4,
-                                   ifelse(ALT.raw.2018 > depth0 & ALT.raw.2018 < depth1 | ALT.raw.2018 > depth1 & depth1 == 1,
-                                          mean.C*mean.bd*(ALT.raw.2018-depth0)*10^4,
-                                          NA)),
-         Se.2009.ratio = sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.ratio.2009*thickness/ALT.ratio.2009^2)^2),
-         Se.2018.ratio = sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.ratio.2018*thickness/ALT.ratio.2018^2)^2),
-         Se.2009.raw = sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.raw.2009*thickness/ALT.raw.2009^2)^2),
-         Se.2018.raw = sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.raw.2018*thickness/ALT.raw.2018^2)^2)) %>%
-  summarise(totC.09.ratio = sum(avail.c.09.ratio, na.rm = TRUE),
-            totC.18.ratio = sum(avail.c.18.ratio, na.rm = TRUE),
-            totC.09.raw = sum(avail.c.09.raw, na.rm = TRUE),
-            totC.18.raw = sum(avail.c.18.raw, na.rm = TRUE),
-            Se.2009.ratio = sqrt(sum(Se.2009.ratio^2, na.rm = TRUE)),
-            Se.2018.ratio = sqrt(sum(Se.2018.ratio^2, na.rm = TRUE)),
-            Se.2009.raw = sqrt(sum(Se.2009.raw^2, na.rm = TRUE)),
-            Se.2018.raw = sqrt(sum(Se.2018.raw^2, na.rm = TRUE))) %>%
-  mutate(diff.ratio = totC.18.ratio-totC.09.ratio,
-         diff.raw = totC.18.raw-totC.09.raw,
-         se.ratio = sqrt(Se.2009.ratio^2 + Se.2018.ratio^2),
-         se.raw = sqrt(Se.2009.raw^2 + Se.2018.raw^2))
+         ALT.ratio = ALT.ratio/100,
+         ALT.raw = ALT.raw/100,
+         avail.c.raw = ifelse(ALT.raw < depth0,
+                              NA,
+                              ifelse(ALT.raw > depth1,
+                                     mean.C*mean.bd*thickness*10^3, # calculate kgC/m^2 thawed (mean.C (%) * bd (g/cm^3) * depth (m) * 10^6 (cm^3/m^3) * 1/1000 (kg/g))
+                                     mean.C*mean.bd*(ALT.raw-depth0)*10^3)),
+         avail.c.ratio = ifelse(ALT.ratio < depth0,
+                                NA,
+                                ifelse(ALT.ratio > depth1,
+                                       mean.C*mean.bd*thickness*10^3, # calculate kgC/m^2 thawed (mean.C (%) * bd (g/cm^3) * depth (m) * 10^6 (cm^3/m^3) * 1/1000 (kg/g))
+                                       mean.C*mean.bd*(ALT.ratio-depth0)*10^3)),
+         Se.raw = ifelse(ALT.raw < depth0,
+                         NA,
+                         ifelse(ALT.raw > depth1,
+                                sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.raw*thickness/ALT.raw^2)^2),
+                                sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.raw*(ALT.raw-depth0)/ALT.raw^2)^2))),
+         Se.ratio = ifelse(ALT.ratio < depth0,
+                           NA,
+                           ifelse(ALT.ratio > depth1,
+                                  sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.ratio*thickness/ALT.ratio^2)^2),
+                                  sqrt((se.C/mean.C)^2 + (se.bd/mean.bd)^2 + (se.ALT.ratio*(ALT.ratio-depth0)/ALT.ratio^2)^2)))) %>%
+  summarise(totC.raw = sum(avail.c.raw, na.rm = TRUE),
+            totC.ratio = sum(avail.c.ratio, na.rm = TRUE),
+            Se.raw = sqrt(sum(Se.raw^2, na.rm = TRUE)),
+            Se.ratio = sqrt(sum(Se.ratio^2, na.rm = TRUE)))
+
+carbonchange <- data.frame(treatment = c('Control', 'Warming'),
+                           totC.09.ratio = c(thawedc$totC.ratio[1], thawedc$totC.ratio[2]),
+                           totC.18.ratio = c(thawedc$totC.ratio[19], thawedc$totC.ratio[20]),
+                           totC.09.raw = c(thawedc$totC.raw[1], thawedc$totC.raw[2]),
+                           totC.18.raw = c(thawedc$totC.raw[19], thawedc$totC.raw[20]),
+                           Se.09.ratio = c(thawedc$Se.ratio[1], thawedc$Se.ratio[2]),
+                           Se.18.ratio = c(thawedc$Se.raw[1], thawedc$Se.raw[2]),
+                           Se.09.raw = c(thawedc$Se.ratio[19], thawedc$Se.ratio[20]),
+                           Se.18.raw = c(thawedc$Se.raw[19], thawedc$Se.raw[20])) %>%
+  mutate(diff.ratio = totC.18.ratio - totC.09.ratio,
+         diff.raw = totC.18.raw - totC.09.raw,
+         se.ratio = sqrt(totC.18.ratio^2 + totC.09.ratio^2),
+         se.raw = sqrt(totC.18.raw^2 + totC.09.raw^2))
+  
 
 avail_c <- carbonchange %>%
   gather(key = type, value = avail.c, diff.ratio:se.raw) %>%
@@ -114,7 +111,7 @@ avail_c <- carbonchange %>%
                                  'Raw',
                                  'Subsidence Adjusted'))
 
-
+# write.csv(thawedc, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Thawed_Carbon_w_sub.csv', row.names = FALSE)
 # write.csv(carbonchange, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv', row.names = FALSE)
 carbonchange <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Carbon_Content_Change_2018.csv')
 
