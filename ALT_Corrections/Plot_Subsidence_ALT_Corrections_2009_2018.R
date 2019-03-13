@@ -3,8 +3,6 @@
 ###                            Code written by HGR, Sep 2018                                             ###
 ############################################################################################################
 
-# need to add 2018 ALT to this dataset, also redo with filled elevation stack
-
 ################################### Load packages necessary for analysis - run every time ##################
 library(sf)
 library(readxl)
@@ -21,11 +19,14 @@ library(tidyverse)
 
 ### Load data ##############################################################################################
 # CiPEHR - Stack the subsidence rasters which are calculated from 2009
-CiPEHR_brick <- list(brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/AElevationStack.tif'), 
-                     brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/BElevationStack.tif'), 
-                     brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/CElevationStack.tif'))
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks', full.names = TRUE)
+CiPEHR_brick <- list(brick(filenames[1]), 
+                     brick(filenames[3]), 
+                     brick(filenames[5]))
 # DryPEHR - Stack the subsidence rasters which are calculated from 2011
-DryPEHR_brick <- list(stack(filenames[1:4]), stack(filenames[10:13]), stack(filenames[19:22]))
+DryPEHR_brick <- list(brick(filenames[2]), 
+                      brick(filenames[4]), 
+                      brick(filenames[6]))
 # 2017 shapefile for location of plots
 plotcoords <- read_sf("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp") %>%
   mutate(block = ifelse(fence == 1 | fence == 2,
@@ -55,23 +56,23 @@ WTD <- rbindlist(lst, fill=T)
 ######## Extract subsidence values from rasters using plot locations from plotcoords data frames and format to join with plotcoords again ########
 ### CiPEHR
 CiPEHR_extract <- data.frame()
-for (i in 1: length(CiPEHR_stack)) {
+for (i in 1: length(CiPEHR_brick)) {
   plotcoords.temp <- plotcoords %>%
     filter(block == i & exp == 'CiPEHR')
-  CiPEHR_extract_temp <- extract(CiPEHR_stack[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_stack[[i]]), df = TRUE) %>%
-    dplyr::select(sub2011 = 2,
-                  sub2015 = 3,
-                  sub2016 = 4,
-                  sub2017 = 5,
-                  sub2018 = 6,
+  CiPEHR_extract_temp <- raster::extract(CiPEHR_brick[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_brick[[i]]), df = TRUE) %>%
+    dplyr::select(sub2010 = 2,
+                  sub2011 = 3,
+                  sub2012 = 4,
+                  sub2013 = 5,
+                  sub2014 = 6,
+                  sub2015 = 7,
+                  sub2016 = 8,
+                  sub2017 = 9,
+                  sub2018 = 10,
                   -ID) %>%
-    mutate(sub2009 = 0,
-           sub2010 = NA,
-           sub2012 = NA,
-           sub2013 = NA,
-           sub2014 = NA) %>%
+    mutate(sub2009 = 0) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    gather(key = year, value = subsidence, sub2011:sub2014) %>%
+    gather(key = year, value = subsidence, sub2010:sub2009) %>%
     mutate(year = as.numeric(str_sub(year, 4, 7)),
            time = year - 2009,
            treatment = ifelse(plot == 1 | plot == 3,
@@ -87,21 +88,21 @@ for (i in 1: length(CiPEHR_stack)) {
 
 ### DryPEHR
 DryPEHR_extract <- data.frame()
-for (i in 1: length(DryPEHR_stack)) {
+for (i in 1: length(DryPEHR_brick)) {
   plotcoords.temp <- plotcoords %>%
     filter(block == i & exp == 'DryPEHR')
-  DryPEHR_extract_temp <- extract(DryPEHR_stack[[i]], plotcoords.temp, layer = 1, nl = nlayers(DryPEHR_stack[[i]]), df = TRUE) %>%
-    dplyr::select(sub2015 = 2,
-                  sub2016 = 3,
-                  sub2017 = 4,
-                  sub2018 = 5,
+  DryPEHR_extract_temp <- raster::extract(DryPEHR_brick[[i]], plotcoords.temp, layer = 1, nl = nlayers(DryPEHR_brick[[i]]), df = TRUE) %>%
+    dplyr::select(sub2012 = 2,
+                  sub2013 = 3,
+                  sub2014 = 4,
+                  sub2015 = 5,
+                  sub2016 = 6,
+                  sub2017 = 7,
+                  sub2018 = 8,
                   -ID) %>%
-    mutate(sub2011 = 0,
-           sub2012 = NA,
-           sub2013 = NA,
-           sub2014 = NA) %>%
+    mutate(sub2011 = 0) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    gather(key = year, value = subsidence, sub2015:sub2014) %>%
+    gather(key = year, value = subsidence, sub2012:sub2011) %>%
     mutate(year = as.numeric(str_sub(year, 4, 7)),
            time = year - 2011,
            treatment = ifelse(plot == 'a',
@@ -125,10 +126,7 @@ Sub_extract <- CiPEHR_extract %>%
                         'A',
                         ifelse(block == 2,
                                'B',
-                               'C')),
-         subsidence = ifelse(subsidence != is.na(subsidence),
-                             subsidence,
-                             predict.lm(subsidence ~ time))) %>%
+                               'C'))) %>%
   dplyr::select(year, exp, block, fence, plot, treatment, subsidence, time)
 
 # write.table(Sub_extract, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.txt', sep = '\t', row.names = FALSE)

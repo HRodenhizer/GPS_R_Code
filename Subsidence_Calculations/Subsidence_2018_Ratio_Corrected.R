@@ -19,7 +19,10 @@ library(magick)
 
 ##################### Import raster files ##############################################
 filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/', full.names = TRUE)
-Elevation_fill <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
+Elevation_fill <- list(brick(filenames[2]), brick(filenames[4]), brick(filenames[6]))
+# load extent data
+blocks <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
+blocks11 <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly_2011.shp')
 ########################################################################################
 
 ### Make Elevation into matrices for gifs ##############################################
@@ -40,7 +43,7 @@ for (i in 1:length(Elevation_fill)) {
   sub_stack <- stack()
   for (k in 2:nlayers(Elevation_fill[[i]])) {
    temp_raster <- Elevation_fill[[i]][[k]] - Elevation_fill[[i]][[1]]
-   sub_stack <- stack(sub_stack, temp_raster)
+   sub_stack <- mask(stack(sub_stack, temp_raster), blocks)
   }
   subsidenceC[[i]] <- sub_stack
   names(subsidenceC[[i]]) <- paste('year', seq(2010, 2018), sep = '')
@@ -53,7 +56,7 @@ for (i in 1:length(Elevation_fill)) {
   sub_stack <- stack()
   for (k in 4:nlayers(Elevation_fill[[i]])) {
     temp_raster <- Elevation_fill[[i]][[k]] - Elevation_fill[[i]][[3]]
-    sub_stack <- stack(sub_stack, temp_raster)
+    sub_stack <- mask(stack(sub_stack, temp_raster), blocks11)
   }
   subsidenceD[[i]] <- sub_stack
   names(subsidenceD[[i]]) <- paste('year', seq(2012, 2018), sep = '')
