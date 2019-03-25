@@ -14,7 +14,7 @@ soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/S
   separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
   mutate(depth0 = as.numeric(depth0),
          depth1 = as.numeric(depth1))
-ALTsub.ratio <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv')
+ALTsub.ratio <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', sep = '\t', header = TRUE)
 
 # prep the ratio corrected alt data and join with the corrected alt data
 ALTdata <- ALTsub.ratio %>%

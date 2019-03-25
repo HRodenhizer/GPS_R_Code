@@ -123,93 +123,59 @@ Sub_extract <- CiPEHR_extract %>%
   st_as_sf() %>%
   group_by(fence, plot) %>%
   mutate(block = ifelse(block == 1,
-                        'A',
+                        'a',
                         ifelse(block == 2,
-                               'B',
-                               'C'))) %>%
+                               'b',
+                               'c'))) %>%
   dplyr::select(year, exp, block, fence, plot, treatment, subsidence, time)
 
 # write.table(Sub_extract, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.txt', sep = '\t', row.names = FALSE)
 
 ############################################################################################################
   
-######################### Linear Models ####################################################################
-#Linear models - this one for each plot individually
-submodel <- function(df) {fit <- lm(subsidence ~ time,  data=df)
-return(cbind.data.frame(
-  reg.intercept = summary(fit)$coefficients[1],
-  reg.slope = summary(fit)$coefficients[2],
-  reg.r2 = summary(fit)$r.squared,
-  reg.pvalue = anova(fit)$'Pr(>F)'[1]
-))}
+######################### Prep ALT data and join with sub data #############################################
+# Duplicate plot 2 for drypehr a
+ALTdata.dry <- ALTdata %>%
+  filter(plot == 2) %>%
+  mutate(plot = 'a')
 
-coefs_subsidence <- Sub_extract %>%
-  group_by(fence, plot) %>%
-  do(submodel(.)) %>%
-  ungroup() %>%
-  mutate(fence = as.integer(fence))
-
-# write.csv(coefs_subsidence, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/CiPEHR_DryPEHR_Subsidence_Regression_Coefficients_Ratio_Corrected_2009_2018.csv', row.names = FALSE)
-############################################################################################################
-
-######################### Merge points2017 and regression coefficients and gap fill with regressions ###########################
-require(graphics)
-
-## Predictions
-x <- rnorm(15)
-y <- x + rnorm(15)
-predict(lm(y ~ x))
-new <- data.frame(x = seq(-3, 3, 0.5))
-predict(lm(y ~ x), new, se.fit = TRUE)
-pred.w.plim <- predict(lm(y ~ x), new, interval = "prediction")
-pred.w.clim <- predict(lm(y ~ x), new, interval = "confidence")
-matplot(new$x, cbind(pred.w.clim, pred.w.plim[,-1]),
-        lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
-
-subfill <- Sub_extract %>%
-  dplyr::select(-time) %>%
-  left_join(coefs_subsidence, by = c("fence", "plot")) %>%
-  mutate(year = str_c('sub', year, sep = '')) %>%
-  spread(key = year, value = subsidence) %>%
-  mutate(sub2010 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*1,
-                          NA),
-         sub2012 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*3,
-                          reg.intercept+reg.slope*1),
-         sub2013 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*4,
-                          reg.intercept+reg.slope*2),
-         sub2014 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*5,
-                          reg.intercept+reg.slope*3)) %>%
-  gather(key = year, value = subsidence, sub2009:sub2014) %>%
-  mutate(year = as.integer(str_sub(year, start = 4))) %>%
-  arrange(year, exp, block, fence, plot) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, geometry)
-
-subfill.coords <- st_coordinates(subfill$geometry)
-
-subfill.excel <- subfill %>%
-  dplyr::select(-geometry) %>%
-  cbind.data.frame(subfill.coords)
-
-# write.csv(subfill.excel, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Correction_Regressions_2009_2018.csv', row.names = FALSE)
-
-# join subsidence and alt data and make correction
-
+# Select ALT from thaw data
+ALTdata2 <- ALTdata %>%
+  rbind.data.frame(ALTdata.dry) %>%
+  mutate(year = year(date(date)),
+         doy = yday(date(date)),
+         week = floor(doy/7),
+         exp = ifelse(plot == 'a' | plot == 'b' | plot == 'c' | plot == 'd',
+                      'DryPEHR',
+                      'CiPEHR'),
+         treatment = ifelse(plot == 1 | plot == 3,
+                            'Air Warming',
+                            ifelse(plot == 2 | plot == 4,
+                                   'Control',
+                                   ifelse(plot == 5 | plot == 7,
+                                          'Air + Soil Warming',
+                                          ifelse(plot == 6 | plot == 8,
+                                                 'Soil Warming',
+                                                 ifelse(plot == 'a',
+                                                        'Control',
+                                                        ifelse(plot == 'b',
+                                                               'Drying',
+                                                               ifelse(plot == 'c',
+                                                                      'Warming',
+                                                                      'Drying + Warming')))))))) %>%
+  filter(week == 36) %>%
+  select(year, exp, block, fence, plot, treatment, ALT = td)
+         
 ## Somehow 2016 DryPEHR data are getting duplicated - fix me!
-ALTsub <- subfill %>%
+ALTsub <- Sub_extract %>%
   left_join(ALTdata2, by = c("year", "exp", "block", "fence", "plot", "treatment")) %>%
   mutate(ALT = ALT*-1,
-         ALT.corrected = ifelse(reg.slope < 0,
-                                ALT+subsidence*100,
-                                ALT)) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, ALT, ALT.corrected) %>%
+         ALT.corrected = ALT+subsidence*100) %>%
+  dplyr::select(year, exp, block, fence, plot, treatment, subsidence, ALT, ALT.corrected) %>%
   arrange(year, exp, block, fence, plot)
 
 # Write file
-# write.csv(ALTsub, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv', row.names = FALSE)
+# write.table(ALTsub, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', row.names = FALSE, sep = '\t')
 ############################################################################################################
 
 ################# Format WTD - only needs to be done once ##################################################
@@ -237,7 +203,7 @@ WTD2 <- WTD %>%
 ############################################################################################################
 
 ##################### Load and Prep data for mixed effects model and graphing ##############################
-ALTsub <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv')
+ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', sep = '\t', header = TRUE)
 subpoints <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.csv') %>%
   st_as_sf(coords = c('X', 'Y'))
 WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/Compiled/WTD_2018_compiled.csv") %>%
@@ -252,7 +218,9 @@ thawedc <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/G
 WTD_fence <- WTD %>%
   group_by(year, block, fence, treatment) %>%
   summarise(mean.WTD = mean(WTD, na.rm = TRUE)*-1,
-            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n()))
+            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n())) %>%
+  ungroup() %>%
+  mutate(block = tolower(block))
 
 ALTsub_fence <- ALTsub %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
@@ -265,6 +233,8 @@ ALTsub_fence <- ALTsub %>%
             se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
             se.ALT = sd(ALT.corrected, na.rm = TRUE)/sqrt(n())) %>%
   full_join(WTD_fence, by = c('year', 'block', 'fence', 'treatment'))
+
+###################### START HERE NEXT TIME ######################################## !!!!!
 
 # average WTD by year and treatment
 WTD2 <- WTD %>%
