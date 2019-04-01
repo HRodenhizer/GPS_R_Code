@@ -214,6 +214,20 @@ WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/C
                                    as.character(treatment))))
 thawedc <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Thawed_Carbon_w_sub.csv')
 
+### Create a data frame of subsidence points to only reflect winter warming for mixed effects models and graphing subsidence
+subpoints2 <- subpoints %>%
+  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')),
+         treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
+                            'Control',
+                            'Warming'))
+
+### Create a data frame to graph corrected and uncorrected ALT values on top of each other by plot
+ALTsubgraph <- ALTsub %>%
+  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
+  arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
+  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')))
+
+### Create a data frame with WTD, corrected, and uncorrected ALT for each fence and treatment per year
 # join WTD and sub by fence and treatment
 WTD_fence <- WTD %>%
   group_by(year, block, fence, treatment) %>%
@@ -234,27 +248,7 @@ ALTsub_fence <- ALTsub %>%
             se.ALT = sd(ALT.corrected, na.rm = TRUE)/sqrt(n())) %>%
   full_join(WTD_fence, by = c('year', 'block', 'fence', 'treatment'))
 
-###################### START HERE NEXT TIME ######################################## !!!!!
-
-# average WTD by year and treatment
-WTD2 <- WTD %>%
-  group_by(year, treatment) %>%
-  summarise(WTD = mean(WTD, na.rm = TRUE)*-1)
-
-# gather ALT values that are and aren't corrected to be able to graph on top of each other
-ALTsubgraph <- ALTsub %>%
-  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
-  arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
-  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')))
-
-# redo treatment to only reflect winter warming
-subpoints2 <- subpoints %>%
-  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')),
-         treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
-                            'Control',
-                            'Warming'))
-
-# a summarized dataframe for graphing differences in corrected and uncorrected ALT between control and warming
+### Create a summarized data frame for graphing differences in corrected and uncorrected ALT between control and warming
 ALTsubgraph2 <- ALTsubgraph %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
                             'Control',
@@ -269,17 +263,30 @@ ALTsubgraph2 <- ALTsubgraph %>%
                                  'Raw',
                                  'Subsidence Adjusted'))
 
+### Create a data frame for graphing soil profiles with WTD
+# Create a WTD data frame with averages for each treatment per year
+WTD2 <- WTD %>%
+  group_by(year, treatment) %>%
+  summarise(mean.WTD = mean(WTD, na.rm = TRUE)*-1,
+            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n()))
+
 # a summarized dataframe with WTD as well to make the soil profile figures
 ALTsub.summary <- ALTsub %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
                             'Control',
                             'Warming')) %>%
   group_by(year, treatment) %>%
-  summarise(subsidence = mean(subsidence, na.rm = TRUE)*100,
-            ALT = mean(ALT.corrected, na.rm = TRUE)) %>%
+  summarise(mean.subsidence = mean(subsidence, na.rm = TRUE)*100,
+            se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
+            mean.ALT.corrected = mean(ALT.corrected, na.rm = TRUE),
+            se.ALT.corrected = sd(ALT.corrected, na.rm = TRUE)/sqrt(n()),
+            mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
+  mutate(percent.change = (mean.ALT.corrected/mean.ALT - 1)*100,
+         se.percent.change = sqrt( (se.ALT.corrected/mean.ALT.corrected)^2 + (se.ALT/mean.ALT)^2 )*100) %>%
   full_join(WTD2, by = c('year', 'treatment'))
 
-# prep the carbon change data for graphing with ALT data
+### Create a data frame for graphing the carbon change data  with ALT data
 avail_c <- thawedc %>%
   gather(key = type, value = avail.c, totC.raw:Se.ratio) %>%
   separate(type, into = c('measurement', 'sub.correction')) %>%
@@ -607,13 +614,13 @@ linetypes <- c('Permafrost' = 'solid', 'Unsaturated Active Layer' = 'solid', 'Sa
 # Cross section of soil for control and warming
 g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   facet_grid(. ~ treatment) +
-  geom_ribbon(aes(ymin = subsidence, ymax = 0, fill = 'Subsidence', linetype = 'Subsidence'), 
+  geom_ribbon(aes(ymin = mean.subsidence, ymax = 0, fill = 'Subsidence', linetype = 'Subsidence'), 
               color = "black") +
-  geom_ribbon(aes(ymin = -160, ymax = ALT, fill = 'Permafrost', linetype = 'Permafrost'), 
+  geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost', linetype = 'Permafrost'), 
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence, fill = 'Unsaturated Active Layer', linetype = 'Unsaturated Active Layer'), 
+  geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer', linetype = 'Unsaturated Active Layer'), 
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence + WTD, fill = 'Saturated Active Layer', linetype = 'Saturated Active Layer'), 
+  geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer', linetype = 'Saturated Active Layer'), 
               colour = 'black') +
   geom_hline(yintercept = 0, linetype = 2) +
   scale_fill_manual(name = '',
@@ -697,7 +704,7 @@ ggplot(data=data,aes(x=a)) +
   theme(axis.title.x = element_text(size = 15, vjust=-.2)) +
   theme(axis.title.y = element_text(size = 15, vjust=0.3))
 
-g6 <- ggplot(ALTsub.summary, aes(x = ALT*-1, y = subsidence, colour = treatment)) +
+g6 <- ggplot(ALTsub.summary, aes(x = mean.ALT.corrected*-1, y = mean.subsidence, colour = treatment)) +
   geom_point() +
   scale_color_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),

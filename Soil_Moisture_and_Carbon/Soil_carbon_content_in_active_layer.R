@@ -88,18 +88,18 @@ thawedc <- carbon09 %>%
             Se.ratio = sqrt(sum(Se.ratio^2, na.rm = TRUE)))
 
 carbonchange <- data.frame(treatment = c('Control', 'Warming'),
-                           totC.09.ratio = c(thawedc$totC.ratio[1], thawedc$totC.ratio[2]),
+                           totC.09 = c(thawedc$totC.ratio[1], thawedc$totC.ratio[2]),
                            totC.18.ratio = c(thawedc$totC.ratio[19], thawedc$totC.ratio[20]),
-                           totC.09.raw = c(thawedc$totC.raw[1], thawedc$totC.raw[2]),
                            totC.18.raw = c(thawedc$totC.raw[19], thawedc$totC.raw[20]),
-                           Se.09.ratio = c(thawedc$Se.ratio[1], thawedc$Se.ratio[2]),
+                           Se.09 = c(thawedc$Se.ratio[1], thawedc$Se.ratio[2]),
                            Se.18.ratio = c(thawedc$Se.raw[1], thawedc$Se.raw[2]),
-                           Se.09.raw = c(thawedc$Se.ratio[19], thawedc$Se.ratio[20]),
                            Se.18.raw = c(thawedc$Se.raw[19], thawedc$Se.raw[20])) %>%
-  mutate(diff.ratio = totC.18.ratio - totC.09.ratio,
-         diff.raw = totC.18.raw - totC.09.raw,
-         se.ratio = sqrt(totC.18.ratio^2 + totC.09.ratio^2),
-         se.raw = sqrt(totC.18.raw^2 + totC.09.raw^2))
+  mutate(diff.ratio = totC.18.ratio - totC.09,
+         diff.raw = totC.18.raw - totC.09,
+         se.ratio = sqrt(Se.18.ratio^2 + Se.09^2),
+         se.raw = sqrt(Se.18.raw^2 + Se.09^2),
+         percent.change = (diff.ratio/diff.raw-1)*100,
+         se.percent.change = sqrt((se.ratio/diff.ratio)^2 + (se.raw/diff.raw)^2)*100)
   
 
 avail_c <- carbonchange %>%
