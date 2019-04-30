@@ -3,30 +3,17 @@
 ###                 Code by HGR 2017                                                 ###
 ########################################################################################
 
-#Required packages to run the following code
-#library(sp)
-#library(rgdal)
-#library(raster)
-#library(dplyr)
-#library(stringr)
-
 ###Required packages to do this with tidyverse
 library(sf)
 library(tidyverse)
 library(viridis)
-library(rvest)
 library(ggplot2)
 library(readxl)
 library(sp)
 library(rgdal)
 library(gstat)
 library(raster)
-library(ggmap)
-library(rasterVis)
 library(ggthemes)
-library(ggsn)
-library(gridExtra)
-library(cowplot)
 
 ############## Load most recent gps file and 2017 elevation surface ###################
 Points2018 <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2018_SPCSAK4.shp")

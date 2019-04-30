@@ -40,8 +40,10 @@ filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur L
 # make a list of elevation raster stacks for each block
 Elevation <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
 # Load ALT
-ALTsub <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv')
+ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
+
 ####################################################################################################################################
+
 
 ### functions necessary for following code #########################################################################################
 calc_ash_depth <- function(x) {
@@ -159,37 +161,82 @@ soil_core_sub_2 <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatmen
   spread(key = year, value = V1) %>%
   mutate(soil.core.sub.soil = depth.2013 - depth.2009) %>%
   select(-depth.2009, -depth.2013) %>%
-  full_join(soil_core_sub, by = c('block', 'fence', 'treatment'))
+  full_join(soil_core_sub, by = c('block', 'fence', 'treatment')) %>%
+  mutate(diff = soil.core.sub.ash - soil.core.sub.soil)
+
+soil_core_sub_3 <- soil_core_sub_2 %>%
+  gather(key = 'sub_type',
+         value = 'subsidence',
+         soil.core.sub.soil:soil.core.sub.ash) %>%
+  mutate(sub_type = factor(ifelse(sub_type == 'soil.core.sub.soil',
+                                     'soil',
+                                     'ash'),
+                           levels = c('soil', 'ash')),
+         dummy = 1)
 
 test <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), test.function)
 ####################################################################################################################################
 
 #### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
-carbon_loss_model <- lm(soil.core.sub.ash ~ soil.core.sub.soil, soil_core_sub_2)
+carbon_loss_model <- lm(diff ~ 0 + soil.core.sub.soil, soil_core_sub_2)
 summary(carbon_loss_model)
-sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = soil.core.sub.ash)) +
-  geom_abline(slope = 1, linetype = 2) +
-  geom_smooth(method = "lm", color = "black") +
+slope <- carbon_loss_model$coefficients[1]
+intercept <- 0
+soil_core_sub_conf <- predict(carbon_loss_model, newdata=soil_core_sub_2, interval='confidence') %>%
+  as.data.frame() %>%
+  cbind.data.frame(soil_core_sub_2)
+
+sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = diff)) +
+  geom_ribbon(data = soil_core_sub_conf, aes(x = soil.core.sub.soil, ymin = lwr, ymax = upr), fill = 'gray') +
+  geom_segment(x = min(soil_core_sub_2$soil.core.sub.soil),
+               y = slope*min(soil_core_sub_2$soil.core.sub.soil),
+               xend = max(soil_core_sub_2$soil.core.sub.soil),
+               yend = slope*max(soil_core_sub_2$soil.core.sub.soil),
+               color = "black") +
   geom_point(aes(color = treatment)) +
   scale_color_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),
                      name = '') +
   theme_few() +
   coord_fixed() +
-  xlab("Subsidence (without carbon loss)") +
-  ylab("Subsidence (with carbon loss)") +
-  ggtitle('Carbon Loss Contributes to Subsidence') +
-  annotate('text', x = -25, y = 18, 
-           label = paste('y = ', round(carbon_loss_model$coefficients[1], 2), '+ ', round(carbon_loss_model$coefficients[2], 2), 'x', sep = ''), 
-           size = 6) +
-  theme(axis.title.x = element_text(size = 16),
-        axis.text.x  = element_text(size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 18))
+  xlab("Subsidence (bulk density)") +
+  ylab("Subsidence (carbon loss)") +
+  annotate('text', x = 3, y = -15, 
+           label = paste('y = ', round(slope, 2), 'x', sep = ''), 
+           size = 3) +
+  annotate('text', x = 0.5, y = -18, 
+           label = 'p-value = 0.038', 
+           size = 3) +
+  theme(axis.title.x = element_text(size = 12),
+        axis.text.x  = element_text(size = 8),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8))
 sub_carbon_fig
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 8, width = 6.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 95, width = 115, units = 'mm')
+
+
+sub_carbon_boxplot <- ggplot(soil_core_sub_3, aes(x = dummy, y = subsidence)) +
+  geom_boxplot(aes(fill = sub_type), position = 'dodge2', color = 'black') +
+  scale_fill_manual(breaks = c('soil', 'ash'),
+                     values = c("#333333", "#ff3333"),
+                     labels = c('No Carbon Loss', 'With Carbon Loss'),
+                     name = '') +
+  scale_y_continuous(limits = c(-50, 20)) +
+  theme_few() +
+  ylab("Subsidence (cm)") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x  = element_blank(),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        axis.ticks.x = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 8),
+        legend.justification = c(0, 0),
+        legend.position = c(0.01, 0.01)) 
+sub_carbon_boxplot
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution_boxplot.jpg', sub_carbon_boxplot, height = 95, width = 115, units = 'mm')
+####################################################################################################################################
 
 ### compare soil core subsidence with gps subsidence at that location ##############################################################
 Subsidence09_13 <- list()
@@ -700,27 +747,25 @@ bulk.density.moisture <- ggplot(ash_profiles_model_ready, aes(x = moisture, y = 
                        high = 'black',
                        guide = guide_legend(reverse = FALSE),
                        breaks = c(5, 10, 15, 20, 25, 30, 35, 40)) +
-  scale_x_continuous(name = expression(Soil~Moisture~(gWater/gSoil))) +
+  scale_x_continuous(name = expression(Soil~Moisture~(g~Water/g~Soil))) +
   scale_y_continuous(name = expression(Bulk~Density~(g/cm^3))) +
   theme_few() +
-  theme(axis.title.x = element_text(size = 16),
-        axis.text.x  = element_text(size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 16),
-        plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12)) +
-  ggtitle('Bulk Density Responds to Soil Moisture and Depth') +
+  theme(axis.title.x = element_text(size = 12),
+        axis.text.x  = element_text(size = 8),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 10),
+        strip.text.x = element_text(size = 8),
+        strip.text.y = element_text(size = 8)) +
   coord_fixed(ratio = 0.8) + 
-  annotate('text', x = 0.95, y = 1.9, label = paste('BD = ', round(bd_ci$coefs[1], 2), ' - ', round(bd_ci$coefs[2], 2)*-1, '(Ash Depth) + ', round(bd_ci$coefs[3], 2), '(1/SM)', sep = '')) +
-  annotate('text', x = 1.325, y = 1.8, label = paste0("~R^2~c==", round(as.numeric(bd_m_a_r2[2]), 2)), parse = TRUE)
+  annotate('text', x = 1.225, y = 1.9, label = paste('BD = ', round(bd_ci$coefs[1], 2), ' - ', round(bd_ci$coefs[2], 2)*-1, '(AND) + ', round(bd_ci$coefs[3], 2), '(1/SM)', sep = ''), size = 3) +
+  annotate('text', x = 1.41, y = 1.8, label = paste0("~R^2~c==", round(as.numeric(bd_m_a_r2[2]), 2)), parse = TRUE, size = 3)
 
 bulk.density.moisture
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Denisty_Moisture_Mixed_Effects_power_2018.jpg', bulk.density.moisture, height = 6, width = 7.5)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Moisture_Mixed_Effects_power_2018.pdf', bulk.density.moisture, height = 6, width = 7.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Denisty_Moisture_Mixed_Effects_power_2018_notitle.jpg', bulk.density.moisture, width = 180, height = 180, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Bulk_Density_Moisture_Mixed_Effects_power_2018_notitle.pdf', bulk.density.moisture, width = 180, height = 180, units = 'mm')
 
 # subsidence
 ggplot(ash_profiles_graph, aes(x = mean.ALT, y = mean.subsidence)) +

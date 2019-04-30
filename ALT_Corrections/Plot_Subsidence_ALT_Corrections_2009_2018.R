@@ -330,6 +330,8 @@ graph_ci <- function(ci,figtitle,model) {ggplot(ci,aes(x=names,y=coefs))+
 
 ############################## Mixed Effects Models ########################################################
 subpointsC <- subpoints2 %>%
+  cbind(subpoints$treatment) %>%
+  rename(full.treatment = subpoints.treatment) %>%
   filter(exp == 'CiPEHR') %>%
   ungroup() %>%
   mutate(block2 = as.factor(ifelse(block == 'A',
@@ -343,6 +345,13 @@ subpointsC <- subpoints2 %>%
          treatment2 = as.factor(ifelse(treatment == 'Control',
                                        1,
                                        2)),
+         treatment3 = as.factor(ifelse(full.treatment == 'Control',
+                                       1,
+                                       ifelse(full.treatment == 'Air Warming',
+                                              2,
+                                              ifelse(full.treatment == 'Soil Warming',
+                                                     3,
+                                                     4)))),
          fencegroup = factor(block2:fence2),
          wholeplot = factor(block2:fence2:treatment2))
 
@@ -350,7 +359,7 @@ subpointsC <- subpoints2 %>%
 # model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 
 
-## Model with time and treatment, but no interaction
+## Model with time and soil treatment, but no interaction
 model1 <- lmer(subsidence ~ time + treatment2 + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
@@ -358,15 +367,23 @@ model1 <- lmer(subsidence ~ time + treatment2 +
 
 summary(model1)
 
-## Model with different slopes for control and warming
-model2 <- lmer(subsidence ~ time*treatment2  + 
+## Model with time and all treatments, but no interaction
+model2 <- lmer(subsidence ~ time + treatment3 + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model2)
 
-AICc(model2, model1) # model 2 is better, stop
+## Model with different slopes for control and warming
+model3 <- lmer(subsidence ~ time*treatment2  + 
+                 (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+               data = subpointsC,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model3)
+
+AICc(model3, model2, model1) # model 2 is better, stop
 
 # check model residuals of model2
 # look at residuals
@@ -504,8 +521,8 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
         axis.title.y = element_text(size = 12),
         axis.text.y = element_text(size = 8),
         legend.text = element_text(size = 8),
-        legend.justification=c(0,0),
-        legend.position=c(0.01,0.01),
+        legend.justification=c(0, 0),
+        legend.position=c(0.01, 0.01),
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
@@ -580,7 +597,7 @@ gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction
                      labels = c('Raw ALT', 'ALT + Subsidence')) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
-  scale_y_continuous(name = 'Total Permafrost Thaw Depth (cm)',
+  scale_y_continuous(name = 'Subsidence Adjusted ALT (cm)',
                      limits = c(-150, 5),
                      breaks = c(-150, -125, -100, -75, -50, -25, 0),
                      labels = c(-150, '', -100, '', -50, '', 0),
@@ -599,10 +616,51 @@ gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12))
+
 gtest
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest, height = 6, width = 9.5)
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest, height = 6, width = 9.5)
+gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
+  geom_col(data = avail_c, aes(x = year, y = totC/-2, fill = sub.correction), inherit.aes = FALSE, position = 'dodge') +
+  geom_point(size = 2, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5, position = position_dodge(width = 0.5)) +
+  geom_errorbar(data = avail_c, aes(x = year, ymin = (totC-Se)/-2, ymax = (totC + Se)/-2, group = sub.correction), inherit.aes = FALSE, width = 0.5, position = position_dodge(width = 1)) +
+  scale_color_manual(name = 'Permafrost Thaw',
+                     breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#666666", "#000000"),
+                     labels = c('ALT', 'S-ALT')) +
+  scale_fill_manual(name = 'Thawed C',
+                    breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#666666", "#000000"),
+                     labels = c('ALT', 'S-ALT')) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     name = '') +
+  scale_y_continuous(name = 'Permafrost Thaw (cm)',
+                     limits = c(-150, 5),
+                     breaks = c(-150, -125, -100, -75, -50, -25, 0),
+                     labels = c(-150, '', -100, '', -50, '', 0),
+                     sec.axis = sec_axis(~.*2, 
+                                         name = expression(Thawed~Carbon~(kg~C/m^2)),
+                                         breaks = c(-300, -250, -200, -150, -100, -50, 0),
+                                         labels = c(300, '', 200, '', 100, '', 0))) +
+  facet_grid(. ~ treatment) +
+  theme_few() +
+  guides(color = guide_legend(order = 1),
+         fill = guide_legend(order = 2)) +
+  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
+        axis.title.y = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.justification = c(0, 0),
+        legend.position = c(0.01, 0.01),
+        legend.box = 'horizontal',
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+gtest2
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 6, width = 9.5)
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 6, width = 9.5)
 
 
 # soil profile graphs
@@ -687,22 +745,6 @@ g5
 
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.jpg")
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.pdf")
-
-cols <- c("LINE1"="#f04546","LINE2"="#3591d1","BAR"="#62c76b")
-ggplot(data=data,aes(x=a)) + 
-  geom_bar(stat="identity", aes(y=h, fill = "BAR"),colour="#333333")+ #green
-  geom_line(aes(y=b,group=1, colour="LINE1"),size=1.0) +   #red
-  geom_point(aes(y=b, colour="LINE1"),size=3) +           #red
-  geom_errorbar(aes(ymin=d, ymax=e, colour="LINE1"), width=0.1, size=.8) + 
-  geom_line(aes(y=c,group=1,colour="LINE2"),size=1.0) +   #blue 
-  geom_point(aes(y=c,colour="LINE2"),size=3) +           #blue
-  geom_errorbar(aes(ymin=f, ymax=g,colour="LINE2"), width=0.1, size=.8) + 
-  scale_colour_manual(name="Error Bars",values=cols) + scale_fill_manual(name="Bar",values=cols) +
-  ylab("Symptom severity") + xlab("PHQ-9 symptoms") +
-  ylim(0,1.6) +
-  theme_bw() +
-  theme(axis.title.x = element_text(size = 15, vjust=-.2)) +
-  theme(axis.title.y = element_text(size = 15, vjust=0.3))
 
 g6 <- ggplot(ALTsub.summary, aes(x = mean.ALT.corrected*-1, y = mean.subsidence, colour = treatment)) +
   geom_point() +
