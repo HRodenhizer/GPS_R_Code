@@ -402,26 +402,30 @@ par(mfrow=c(1,1))
 hist(subpointsC$subsidence)
 
 # rerun best model with REML = TRUE
-subsidence.model <- lmer(subsidence ~ time*treatment2  + 
+subsidence_model <- lmer(subsidence ~ time*treatment2  + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
-summary(subsidence.model)
+summary(subsidence_model)
+r.squaredGLMM(subsidence_model)
 
 # save model
 # saveRDS(subsidence.model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
 
+subsidence_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
+
 # calculate confidence intervals to look at fixed effects
-subsidence_model_ci <- extract_ci(subsidence.model)
+subsidence_model_ci <- extract_ci(subsidence_model)
 # write.csv(model2_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv', row.names = FALSE)
-predInt <- predictInterval(subsidence.model, newdata = subpointsC, n.sims = 100,
+predInt <- predictInterval(subsidence_model, newdata = subpointsC, n.sims = 1000,
                            returnSims = TRUE, level = 0.95)
 
 subpoints.fit <- subpointsC %>%
   cbind.data.frame(predInt) %>%
   dplyr::select(-geometry)
 # write.csv(subpoints.fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
+
 ############################################################################################################
 
 ################################### Graphs #################################################################

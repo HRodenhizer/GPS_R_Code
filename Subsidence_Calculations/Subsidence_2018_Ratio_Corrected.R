@@ -91,7 +91,7 @@ Fences <- fortify(Fences) %>%
                                'C',
                                'B')))
 
-######################################################################################################
+########################################################################################
 
 ###### Convert subsidence to dataframe for graphing ############################################
 Subsidence.df <- data.frame() # make an empty dataframe to fill with data from each block and year
@@ -115,7 +115,7 @@ for (i in 1:length(subsidenceC)){ # repeat over each block
   }
   rm(i, k)
 }
-###############################################################################################
+########################################################################################
 
 ### In order to graph nicely, it is easiest to normalize the coordinates on each block to 0 in the southwest corner ######
 min.coords <- Subsidence.df %>%
@@ -182,199 +182,86 @@ sub_map
 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.jpg', sub_map)
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.pdf', sub_map)
-###########################################################################################
+########################################################################################
 
-# # create a variance data frame
-# A2009var_df <- as(A2009var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2009Var) %>%
-#   mutate(year = 2009,
-#          block = 'A')
-# 
-# B2009var_df <- as(B2009var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2009Var) %>%
-#   mutate(year = 2009,
-#          block = 'B')
-# 
-# C2009var_df <-  as(C2009var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2009Var) %>%
-#   mutate(year = 2009,
-#          block = 'C')
-# 
-# A2011var_df <- as(A2011var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2011Var) %>%
-#   mutate(year = 2011,
-#          block = 'A')
-# 
-# B2011var_df <- as(B2011var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2011Var) %>%
-#   mutate(year = 2011,
-#          block = 'B')
-# 
-# C2011var_df <- as(C2011var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2011Var) %>%
-#   mutate(year = 2011,
-#          block = 'C')
-# 
-# A2015var_df <- as(A2015var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2015Var) %>%
-#   mutate(year = 2015,
-#          block = 'A')
-# 
-# B2015var_df <- as(B2015var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2015Var) %>%
-#   mutate(year = 2015,
-#          block = 'B')
-# 
-# C2015var_df <- as(C2015var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2015Var) %>%
-#   mutate(year = 2015,
-#          block = 'C')
-# 
-# A2016var_df <- as(A2016var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2016Var) %>%
-#   mutate(year = 2016,
-#          block = 'A')
-# 
-# B2016var_df <- as(B2016var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2016Var) %>%
-#   mutate(year = 2016,
-#          block = 'B')
-# 
-# C2016var_df <- as(C2016var_clip, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2016Var) %>%
-#   mutate(year = 2016,
-#          block = 'C')
-# 
-# A2017var_df <- as(A2017var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2017Var) %>%
-#   mutate(year = 2017,
-#          block = 'A')
-# 
-# B2017var_df <- as(B2017var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2017Var) %>%
-#   mutate(year = 2017,
-#          block = 'B')
-# 
-# C2017var_df <- as(C2017var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2017Var) %>%
-#   mutate(year = 2017,
-#          block = 'C')
-# 
-# A2018var_df <- as(A2018var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = A2018Var) %>%
-#   mutate(year = 2018,
-#          block = 'A')
-# 
-# B2018var_df <- as(B2018var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = B2018Var) %>%
-#   mutate(year = 2018,
-#          block = 'B')
-# 
-# C2018var_df <- as(C2018var, "SpatialPixelsDataFrame") %>%
-#   as.data.frame() %>%
-#   rename(var = C2018Var) %>%
-#   mutate(year = 2018,
-#          block = 'C')
-# ##########################################
-# 
-# # Join into one data frame for graphing
-# Variance.df <- A2009var_df %>%
-#   rbind.data.frame(B2009var_df, C2009var_df,
-#                    A2011var_df, B2011var_df, C2011var_df,
-#                    A2015var_df, B2015var_df, C2015var_df,
-#                    A2016var_df, B2016var_df, C2016var_df,
-#                    A2017var_df, B2017var_df, C2017var_df,
-#                    A2018var_df, B2018var_df, C2018var_df) %>%
-#   rename(long = x, lat = y)
-# 
-# 
-# Variance.df <- Variance.df %>%
-#   left_join(min.coords, by = 'block') %>%
-#   mutate(long.norm = round(long - x.min), # have to round due to bug in ggplot. Details here: https://stackoverflow.com/questions/18157975/combine-geom-tile-and-facet-grid-facet-wrap-and-remove-space-between-tiles-gg
-#          lat.norm = round(lat - y.min)) %>%
-#   select(-x.min, -y.min)
-# 
-# 
-# ### need to clip 2009-2016 before plotting!
-# # Graph all in one go!
-# var_map <- ggplot(Variance.df, aes(x=long.norm, y=lat.norm, fill=var)) +
-#   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
-#   geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
-#   facet_grid(block ~ year) +
-#   coord_fixed() +
-#   theme_few() +
-#   scale_fill_viridis("Variance",
-#                      direction = -1) +
-#   scale_color_manual('Snow Fence',
-#                      values = 'black') +
-#   scale_x_continuous(name = 'Distance (m)') +
-#   scale_y_continuous(name = 'Distance (m)') +
-#   theme(aspect.ratio = 1,
-#         plot.title = element_text(hjust = 0.5),
-#         axis.title.x = element_text(size = 10),
-#         axis.title.y = element_text(size = 10)) +
-#   ggtitle('Variance of the Elevation Surfaces')
-# 
-# var_map
-# 
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Variance.jpg", var_map)
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Variance.pdf", var_map)
-# 
+### Read in Variance data for graphing #################################################
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance', full.names = TRUE, pattern = "\\.tif$")
+variance1 <- list(stack(filenames[1:4]), stack(filenames[7:10]), stack(filenames[13:16])) # stack all but 2017 and 2018 which haven't been clipped
+variance2 <- list(stack(filenames[5:6]), stack(filenames[11:12]), stack(filenames[17:18]))
+blocks <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
+########################################################################################
 
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.jpg", sub_map)
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.pdf", sub_map)
+### clip 2017 and 2018 data and join with the rest ####################################
+for (i in 1:length(variance2)) {
+  temp.block <- blocks %>%
+    filter(Block == unique(Block)[i])
+    var.mask <- mask(variance2[[i]], temp.block)
+    variance[[i]] <- stack(variance1[[i]], var.mask)
+    variance[[i]] <- brick(variance[[i]])
+}
+#######################################################################################
 
-###### I decided not to include a north arrow because it doesn't make any sense anway #################################
-# adding the following causes problems...
-  # north(Subsidence.df, symbol = 12, location = 'bottomleft') +
-  # scalebar(Subsidence.df, dd2km = FALSE, dist = 0.01, st.size = 1, facet.var = c('block', 'year'), facet.lev = c('C', 2011))
+### convert rasters to data frame #####################################################
+years <- c(2009, 2011, 2015, 2016, 2017, 2018)
+variance.df <- data.frame() # make an empty dataframe to fill with data from each block and year
+for (i in 1:length(variance)){ # repeat over each block
+  for (k in 1:nlayers(variance[[i]])){ # repeat over each year within each block
+    temp <- as(variance[[i]][[k]], "SpatialPixelsDataFrame") %>% # convert to spatial pixels dataframe
+      as.data.frame() %>% # convert to dataframe
+      rename(var = 1) %>% # rename the subsidence column from whatever name is automatically taken from filename
+      mutate(year = years[k], # add column with year
+             block = c('A', 'B', 'C')[i]) # add column with block
+    variance.df <- rbind.data.frame(variance.df, temp) # add the data from one block in one year above to the combined dataframe
+  }
+  rm(i, k, temp)
+}
+#######################################################################################
 
-# Add north arrow by making a new empty plot and adding arrow to it, then joining with other figure using cowplot
-# make dummy data frame
-# data <- data.frame(long = c(0, 1, 0, 1),
-#                    lat = c(0, 1, 1, 0)) %>%
-#   mutate(value = '')
-# 
-# north_arrow <- ggplot(data, aes(x = long, y = lat)) +
-#   geom_tile(alpha = 0) +
-#   scale_x_continuous(limits = c(0, 1)) +
-#   scale_y_continuous(limits = c(0,1)) +
-#   coord_fixed() +
-#   theme_few() +
-#   theme(axis.text = element_blank(),
-#         axis.title = element_blank(),
-#         axis.ticks = element_blank(),
-#         plot.margin = c(0,0,0,0), 'cm') +
-#   north(data, symbol = 12, x.min = 0, x.max = 1, y.min = 0, y.max = 1, location = 'bottomleft', scale = 1)
-# 
-# north_arrow
-# 
-# map <- ggdraw() +
-#   draw_plot(sub_map, 0, 0, 1, 1) +
-#   draw_plot(north_arrow, 0.065, 0.11, 0.055, 0.055)
-# 
-# map
-############################################################################################################################
+### normalize to graph all at once ####################################################
+min.coords <- variance.df %>%
+  group_by(block) %>%
+  summarize(x.min = min(x),
+            y.min = min(y))
 
+variance.df <- variance.df %>%
+  left_join(min.coords, by = 'block') %>%
+  mutate(long.norm = round(x - x.min), # have to round due to bug in ggplot. Details here: https://stackoverflow.com/questions/18157975/combine-geom-tile-and-facet-grid-facet-wrap-and-remove-space-between-tiles-gg
+         lat.norm = round(y - y.min)) %>%
+  select(-x.min, -y.min)
 
-### Make a gif of subsidence ###############################################################################################
+Fences.norm <- Fences %>%
+  left_join(min.coords, by = 'block') %>%
+  mutate(long.norm = round(long - x.min),
+         lat.norm = round(lat - y.min),
+         dummy = '') %>%
+  select(-x.min, -y.min)
+#######################################################################################
+
+### Graph variance ####################################################################
+var_map <- ggplot(variance.df, aes(x=long.norm, y=lat.norm, fill=var)) +
+  geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
+  geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
+  facet_grid(block ~ year) +
+  coord_fixed() +
+  theme_few() +
+  scale_fill_viridis(expression("Variance (m)")) +
+  scale_color_manual('Snow Fence',
+                     values = 'black') +
+  scale_x_continuous(name = 'Distance (m)') +
+  scale_y_continuous(name = 'Distance (m)') +
+  theme(aspect.ratio = 1,
+        plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_text(size = 10),
+        axis.title.y = element_text(size = 10))
+
+var_map
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/variance.jpg', plot = var_map, width = 190, height = 115, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/variance.pdf', plot = var_map, width = 190, height = 115, units = 'mm')
+
+#######################################################################################
+
+### Make a gif of subsidence ##########################################################
 # start by plotting in 3D
 subsidence.3D <- list()
 for (i in 1:length(Subsidence.matrix)){
@@ -477,3 +364,4 @@ surf3D(x = x,
 title(paste(2008+10), line = -5)
 image_crop(img, geometry_area(300, 300, 125, 100), repage = FALSE)
 dev.off()
+#######################################################################################

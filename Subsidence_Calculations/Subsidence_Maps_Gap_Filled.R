@@ -56,7 +56,7 @@ for (i in 1:length(Elevation)){
 
 ### Graph Latest Subsidence ################################################################################
 filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks', full.names = TRUE)
-Elevation_fill <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
+Elevation_fill <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 Fences <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Fences.shp')
 Fences <- fortify(Fences) %>%
   mutate(fence = as.numeric(id) + 1,
@@ -108,8 +108,7 @@ subsidence_map <- ggplot(sub_2018_df, aes(x=long.norm, y=lat.norm, fill=subsiden
   facet_grid(. ~ block) +
   theme_few() +
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.2),
-                     direction = -1) +
+                     limits = c(-1.0, 0.2)) +
   scale_color_manual('Snow Fence',
                      values = 'black') +
   scale_x_continuous(name = 'Distance (m)') +
