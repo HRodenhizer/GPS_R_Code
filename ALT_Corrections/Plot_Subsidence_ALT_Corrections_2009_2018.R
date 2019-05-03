@@ -684,6 +684,7 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
               colour = 'black') +
   geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer', linetype = 'Saturated Active Layer'), 
               colour = 'black') +
+  geom_line(aes(y = mean.ALT), color = 'black', linetype = 3) +
   geom_hline(yintercept = 0, linetype = 2) +
   scale_fill_manual(name = '',
                     values = color,

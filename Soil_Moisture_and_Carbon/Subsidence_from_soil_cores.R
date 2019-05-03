@@ -38,7 +38,7 @@ water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur La
 # find elevation files in directory
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", full.names = TRUE, pattern = '^.*.tif$')
 # make a list of elevation raster stacks for each block
-Elevation <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
+Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 # Load ALT
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
 
@@ -200,7 +200,7 @@ sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = diff))
   theme_few() +
   coord_fixed() +
   xlab("Subsidence (bulk density)") +
-  ylab("Subsidence (carbon loss)") +
+  ylab("Subsidence (C loss)") +
   annotate('text', x = 3, y = -15, 
            label = paste('y = ', round(slope, 2), 'x', sep = ''), 
            size = 3) +
@@ -213,7 +213,7 @@ sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = diff))
         axis.text.y = element_text(size = 8),
         legend.text = element_text(size = 8))
 sub_carbon_fig
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 95, width = 115, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 70, width = 115, units = 'mm')
 
 
 sub_carbon_boxplot <- ggplot(soil_core_sub_3, aes(x = dummy, y = subsidence)) +
