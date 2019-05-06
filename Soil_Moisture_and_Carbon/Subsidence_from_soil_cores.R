@@ -585,6 +585,17 @@ bd_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS
 bd_model_r2 <- r.squaredGLMM(bd_m_a_model)
 summary(bd_m_a_model)
 
+bd_model_table <- data.frame(Response = c('Bulk Density', rep(NA, 5)),
+                             `Full Model` = c('Soil Moisture', 'Ash Layer', 'ALT', 'Soil Warming', 'Year', 'Soil Moisture*Ash Layer'),
+                             `Final Variables` = c('Intercept', 'Soil Moisture', 'Ash Layer', rep(NA, 3)),
+                             Coeficient = c(bd_ci$coefs[1], bd_ci$coefs[3], bd_ci$coefs[2], rep(NA, 3)),
+                             `Min CI` = c(bd_ci$min[1], bd_ci$min[3], bd_ci$min[2], rep(NA, 3)),
+                             `Max CI` = c(bd_ci$max[1], bd_ci$max[3], bd_ci$max[2], rep(NA, 3)),
+                             `R2 Marginal` = c(bd_model_r2[1], rep(NA, 5)),
+                             `R2 Conditional` = c(bd_model_r2[2], rep(NA, 5)),
+                             AIC = c(AIC(bd_m_a_model), rep(NA, 5)))
+# write.csv(bd_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/BD_model_table.csv', row.names = FALSE)
+
 ### Model subsidence ###############################################################################################################
 # I don't think I can actually include ALT, since it was used to determine subsidence - nothing is looking good.
 # model with ALT, bulk density, and moisture

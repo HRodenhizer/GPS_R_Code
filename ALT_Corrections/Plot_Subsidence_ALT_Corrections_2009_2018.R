@@ -359,50 +359,78 @@ subpointsC <- subpoints2 %>%
 # model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 
 
-## Model with time and soil treatment, but no interaction
-model1 <- lmer(subsidence ~ time + treatment2 + 
+# ## Model with time and soil treatment, but no interaction
+# model1 <- lmer(subsidence ~ 0 + time + treatment2 + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model1)
+# 
+# ## Model with time and all treatments, but no interaction
+# model2 <- lmer(subsidence ~ 0 + time + treatment3 + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model2)
+# 
+# ## Model with different slopes for control and warming
+# model3 <- lmer(subsidence ~ 0 + time + time*treatment2  + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model3)
+# 
+# 
+# AICc(model3, model2, model1) # model 3 is best, and no additional variables to add since adding warming didn't improve model
+
+## Model with time 
+model1 <- lmer(subsidence ~ 0 + time +
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model1)
 
-## Model with time and all treatments, but no interaction
-model2 <- lmer(subsidence ~ time + treatment3 + 
+## Model with time and interaction between time and soil warming
+model2 <- lmer(subsidence ~ 0 + time + time:treatment2 +
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model2)
 
-## Model with different slopes for control and warming
-model3 <- lmer(subsidence ~ time*treatment2  + 
+## Model with time and interaction between time and all treatments
+model3 <- lmer(subsidence ~ 0 + time + time:treatment3 +
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model3)
 
-AICc(model3, model2, model1) # model 2 is better, stop
+AICc(model3, model2, model1)
+
 
 # check model residuals of model2
 # look at residuals
-model2.resid <- resid(model2)
-model2.fitted <- fitted(model2)
-model2.sqrt <- sqrt(abs(resid(model2)))
+model3.resid <- resid(model3)
+model3.fitted <- fitted(model3)
+model3.sqrt <- sqrt(abs(resid(model3)))
 
 # graph
 par(mfrow=c(2,2), mar = c(4,4,3,2))
-plot(model2.fitted, model2.resid, main='resid, model2')
-plot(model2.fitted, model2.sqrt, main='sqrt resid, model2')
-qqnorm(model2.resid, main = 'model2')
-qqline(model2.resid)
+plot(model3.fitted, model3.resid, main='resid, model2')
+plot(model3.fitted, model3.sqrt, main='sqrt resid, model2')
+qqnorm(model3.resid, main = 'model2')
+qqline(model3.resid)
 par(mfrow=c(1,1))
 
 hist(subpointsC$subsidence)
 
 # rerun best model with REML = TRUE
-subsidence_model <- lmer(subsidence ~ time*treatment2  + 
+subsidence_model <- lmer(subsidence ~ 0 + time + time:treatment3  + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
@@ -411,15 +439,17 @@ summary(subsidence_model)
 r.squaredGLMM(subsidence_model)
 
 # save model
-# saveRDS(subsidence.model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
+# saveRDS(subsidence_model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
 
-subsidence_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
+subsidence_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
 
 # calculate confidence intervals to look at fixed effects
 subsidence_model_ci <- extract_ci(subsidence_model)
-# write.csv(model2_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv', row.names = FALSE)
+# write.csv(subsidence_model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv', row.names = FALSE)
+subsidence_model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv')
+
 predInt <- predictInterval(subsidence_model, newdata = subpointsC, n.sims = 1000,
-                           returnSims = TRUE, level = 0.95)
+                           returnSims = TRUE, level = 0.95, ignore.fixed.terms = c(intercept, treatment3))
 
 subpoints.fit <- subpointsC %>%
   cbind.data.frame(predInt) %>%
