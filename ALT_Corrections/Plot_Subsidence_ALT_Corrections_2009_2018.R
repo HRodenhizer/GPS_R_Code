@@ -421,9 +421,9 @@ model3.sqrt <- sqrt(abs(resid(model3)))
 
 # graph
 par(mfrow=c(2,2), mar = c(4,4,3,2))
-plot(model3.fitted, model3.resid, main='resid, model2')
-plot(model3.fitted, model3.sqrt, main='sqrt resid, model2')
-qqnorm(model3.resid, main = 'model2')
+plot(model3.fitted, model3.resid, main='resid, model3')
+plot(model3.fitted, model3.sqrt, main='sqrt resid, model3')
+qqnorm(model3.resid, main = 'model3')
 qqline(model3.resid)
 par(mfrow=c(1,1))
 
