@@ -41,89 +41,73 @@ filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur L
 Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 # Load ALT
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
-
 ####################################################################################################################################
 
 
 ### functions necessary for following code #########################################################################################
-calc_ash_depth <- function(x) {
-  if (x$year[1] == x$year.min.mass[1]) {
-    depth <- x$max.depth[1]
-  } else {
-    running.mass <- 0
-    n = nrow(x)
-    for (i in 1:n) {
-      if ((running.mass + x$ash.mass[i]) < x$ash.mass.total[i]) {
-        running.mass <- running.mass + x$ash.mass[i]
-        depth <- x$depth1[i]
-      } else if (running.mass == x$ash.mass.total[i]) {
-        depth <- depth
-      } else {
-        depth <- depth + (x$depth1[i] - x$depth0[i]) * ((x$ash.mass.total[i] - running.mass)/x$ash.mass[i])
-        running.mass <- x$ash.mass.total[i]
-      }
-    }
+get.height <- Vectorize(function( depth0, depth1, amount, goal ){
+  A <- cumsum(amount)
+  goal.lwr <- goal - 5
+  if( all( A < goal.lwr | goal == 0)){    # if the core isn't deep enough to reach the desired quantity of ash - 5
+    return(NA)
   }
-  data.frame(return(depth))
-}
+  # calc height of core to goal ash content
+  if ( any(A > goal)) { # deal with the situations in which the core reaches the total desired quantity of ash
+    index.upr <- min( which( A >= goal ) ) # layer where we reach the desired quantity of ash
+    start.ash <- A[index.upr] - amount[index.upr] # cumulative amount of ash to the layer below the layer where the goal is met
+    need <- goal - start.ash # how much of the layer where the goal is met that is needed
+    height <- (depth1[index.upr] - depth0[index.upr]) * (need / amount[index.upr]) # height of the layer where the goal is met that is needed
+    tot.height <- depth0[index.upr] + height # add the core height to layer below layer where goal is met to the amount of current layer that is needed
+  } else { # extrapolate depth for the situations in which we have passed the desired quantity of ash -5, but never reached the desired quantity of ash
+    index.upr <- max( which( A >= goal.lwr) )
+    layer.height <- depth1[index.upr] - depth0[index.upr]
+    need <- goal - A[index.upr]
+    height <- need * (layer.height / amount[index.upr])
+    tot.height <- depth1[index.upr] + height
+  }
+  
+  return(tot.height)
+}, 'goal')
 
-test.function <- function(x) {
-  i <- 0 # keeps track of rows in new data frame
-  j <- 0 # keeps track of rows in old data frame
-  depth.index <- x$depth1[1] # keeps track of the depth in the soil profile (so as not to iterate beyond the depth of data)
-  bulk.density.2 <- c() # empty vector to hold bd later
-  depth.2 <- c() # empty vector to hold depth later
-  ash.mass.2 <- c() # empty vector to hold ash mass later
-  while (depth.index < max(x$depth1)) { # repeat this chunk of code so long as the depth you are looking at isn't beyond the range of depths
-    i <- i + 1 # each time you go through this while loop once, you add a row to the output dataframe. This allows you to keep track of how many rows there are.
-    j <- j + 1 # j keeps track of the row number in the old data frame, so it increases here and in the next while loop
-    bd.tot <- 0
-    print(paste("i =", i))
-    while (depth.index <= max(x$depth1) & x$ash.mass.tot[j] < 5*i) { # this gets mad when j is outside of the bounds of the group within x
-      if (x$ash.mass.tot[j] > 5*(i-1)) { # this if else needs to include what to do in case that the whole ash layer is within one depth layer!
-        bd.tot <- bd.tot + x$bulk.density[j]*(x$ash.mass.tot[j] - 5*(i-1))
-      } else {
-        bd.tot <- bd.tot + x$bulk.density[j]*x$ash.mass[j]
-      }
-      j <- j + 1
-      print(paste("j =", j))
-      depth.index <- x$depth1[j]
-      if (j > nrow(x)) { # this isn't working the way I want it to!
-        break
-      }
-    }
-    bulk.density.2[i] <- (bd.tot + x$bulk.density[j]*(5*i - x$ash.mass.tot[j-1]))/5
-    depth.2[i] <- x$depth1[j] - (x$depth1[j] - x$depth0[j])*(x$ash.mass.tot[j] - 5*i)/x$ash.mass[j]
-    ash.mass.2[i] <- 5*i
-    if (x$ash.mass.tot[j] > 5*i) {
-      j <- j - 1
-    }
-    depth.index <- x$depth1[j]
+avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
+  A <- cumsum(amount)
+  goal.lwr <- goal - 5
+  if( all( A < goal.lwr | goal == 0)){    # if the core isn't deep enough to reach the desired quantity of ash
+    return(NA)
   }
-  all <- cbind(ash.mass.2, depth.2, bulk.density.2)
-  data.frame(return(all))
-}
-
-calc_soil_depth <- function(x) {
-  if (x$year[1] == x$year.min.mass[1]) {
-    depth <- x$max.depth[1]
+  
+  # calc avg bulk density of core between last and current goals
+  if ( any( A > goal)) {
+    index.lwr <- min(which(A > goal.lwr)) # layer where we reach the quantity of ash that we are starting from
+    index.upr <- min(which(A >= goal)) # layer where we reach the desired quantity of ash
+    start.ash <- A[index.upr] - amount[index.upr] # cumulative amount of ash to the layer below the layer where the goal is met
+    need <- goal - start.ash # amount of ash of the layer where the goal is met that is needed
+    prior.prop <- soil.prop[index.lwr:index.upr]
+    weights <- amount[index.lwr:index.upr]
+    if(length(prior.prop) == 1) {
+      weights <- c(5)
+    } else {
+      weights[1] <- (A[index.lwr] - goal.lwr)
+      weights[length(weights)] <- need
+    }
+    prop <- sum(prior.prop * weights) / 5
   } else {
-    running.mass <- 0
-    n = nrow(x)
-    for (i in 1:n) {
-      if ((running.mass + x$soil.mass[i]) < x$soil.mass.total[i]) {
-        running.mass <- running.mass + x$soil.mass[i]
-        depth <- x$depth1[i]
-      } else if (running.mass == x$soil.mass.total[i]) {
-        depth <- depth
-      } else {
-        depth <- depth + (x$depth1[i] - x$depth0[i]) * ((x$soil.mass.total[i] - running.mass)/x$soil.mass[i])
-        running.mass <- x$soil.mass.total[i]
-      }
+    index.lwr <- min(which(A > goal.lwr)) # layer where we reach the quantity of ash that we are starting from
+    index.upr <- max( which( A >= goal.lwr) ) # last layer we have
+    need <- goal - A[index.upr] + amount[index.upr]
+    prior.prop <- soil.prop[index.lwr:index.upr]
+    weights <- amount[index.lwr:index.upr]
+    if(length(prior.prop) == 1) {
+      weights <- c(5)
+    } else {
+      weights[1] <- (A[index.lwr] - goal.lwr)
+      weights[length(weights)] <- need
     }
+    prop <- sum(prior.prop * weights) / 5
   }
-  data.frame(return(depth))
-}
+  
+  return(prop)
+}, 'goal')
 ####################################################################################################################################
 
 ### calculate the height of cores with the same amount of soil mass in 2009 vs. 2013 ################################################
@@ -136,45 +120,132 @@ ash_mass_09_13 <- soil_09_13 %>%
          ash.mass = ash*bulk.density*(depth1 - depth0)/1000,
          ash.mass.tot = cumsum(ash.mass))
 
-ash_mass_total <- ash_mass_09_13 %>%
-  group_by(year, block, fence, treatment) %>%
-  summarise(soil.mass.total = sum(soil.mass, na.rm = TRUE),
-            ash.mass.total = sum(ash.mass, na.rm = TRUE),
-            max.depth = max(depth1)) %>%
-  group_by(block, fence, treatment) %>%
-  filter(ash.mass.total == min(ash.mass.total)) %>%
-  arrange(block, fence, treatment) %>%
-  rename(year.min.mass = year)
+goal <- seq(0, 55, 5)
 
-ash_mass_09_13_2 <- ash_mass_09_13 %>%
-  left_join(ash_mass_total, by = c('block', 'fence', 'treatment')) %>%
-  group_by(year, block, fence, treatment)
+# still need to do the next steps with soil normalization, too
+# extract depths to chosen uniform ash mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+depth <- ash_mass_09_13 %>%
+  do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$ash.mass, goal)) })
 
-soil_core_sub <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), calc_ash_depth) %>%
-  mutate(year = paste('depth.', year, sep = '')) %>%
-  spread(key = year, value = V1) %>%
-  mutate(soil.core.sub.ash = depth.2013 - depth.2009) %>%
-  select(-depth.2009, -depth.2013)
+# average bulk density for each of the previously calculated depths
+bd <- ash_mass_09_13 %>%
+  do({ data.frame( bd = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$bulk.density, goal))})
 
-soil_core_sub_2 <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), calc_soil_depth) %>%
-  mutate(year = paste('depth.', year, sep = '')) %>%
-  spread(key = year, value = V1) %>%
-  mutate(soil.core.sub.soil = depth.2013 - depth.2009) %>%
-  select(-depth.2009, -depth.2013) %>%
-  full_join(soil_core_sub, by = c('block', 'fence', 'treatment')) %>%
-  mutate(diff = soil.core.sub.ash - soil.core.sub.soil)
+# average moisture for each of the previously calculated depths
+moisture <- ash_mass_09_13 %>%
+  do({ data.frame( moisture = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$moisture, goal))})
 
-soil_core_sub_3 <- soil_core_sub_2 %>%
-  gather(key = 'sub_type',
-         value = 'subsidence',
-         soil.core.sub.soil:soil.core.sub.ash) %>%
-  mutate(sub_type = factor(ifelse(sub_type == 'soil.core.sub.soil',
-                                     'soil',
-                                     'ash'),
-                           levels = c('soil', 'ash')),
-         dummy = 1)
+# join depth, bd, and moisture dataframes into one
+soil_09_13_ash <- depth %>%
+  cbind.data.frame(bd = bd$bd, moisture = moisture$moisture) %>%
+  mutate(ash.mass = rep(seq(0, 55, 5), 24)) %>%
+  mutate(depth1 = ifelse(ash.mass == 0,
+                         0,
+                         depth1)) %>%
+  filter(!is.na(depth1)) %>%
+  select(year, block, fence, treatment, ash.mass, depth1, bd, moisture)
 
-test <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), test.function)
+height <- soil_09_13_ash$depth1 %>%
+  diff()
+height <- height[height >= 0]
+
+soil_09_13_ash <- soil_09_13_ash %>%
+  filter(!is.na(bd)) %>%
+  cbind(height) %>%
+  mutate(depth0 = depth1-height) %>%
+  select(year, block, fence, treatment, ash.mass, depth0, depth1, height, bd, moisture)
+
+# prep alt data for joining
+alt <- ALTsub %>%
+  select(year, fence, plot, treatment, ALT) %>%
+  filter(year == 2009 | year == 2013) %>%
+  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+                            'c',
+                            'w')) %>%
+  group_by(year, fence, treatment) %>%
+  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
+
+# join alt with soil_09_13_ash - why isn't filter working? It's not an issue with number rounding...
+soil_ash_alt <- soil_09_13_ash %>%
+  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
+  filter(mean.ALT > depth0 & mean.ALT < depth1)
+
+test <- data.frame(lower = c(0,5,10),
+                   upper = c(5,10,15),
+                   alt = rep(7, 3))
+
+# calculate subsidence, change in bd, and change in moisture in each layer
+soil_09_ash <- soil_09_13_ash %>%
+  filter(year == 2009) %>%
+  select(block, fence, treatment, ash.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
+
+soil_core_sub <- soil_09_13_ash %>%
+  filter(year == 2013) %>%
+  select(block, fence, treatment, ash.mass, depth0.2013 = depth0, depth1.2013 = depth1, height.2013 = height, bd.2013 = bd, moisture.2013 = moisture) %>%
+  full_join(soil_09_ash, by = c('block', 'fence', 'treatment', 'ash.mass')) %>%
+  arrange(block, fence, treatment, ash.mass) %>%
+  mutate(subsidence = height.2013 - height.2009,
+         delta.bd = bd.2013 - bd.2009,
+         delta.moisture = moisture.2013 - moisture.2009) %>%
+  select(block, fence, treatment, ash.mass, subsidence, delta.bd, delta.moisture)
+
+# add horizontal lines at the 2009 and 2013 active layer thicknesses?
+ggplot(soil_core_sub, aes(x = subsidence, y = -ash.mass, color = treatment)) +
+  geom_point() +
+  geom_path() +
+  facet_grid(.~fence)
+
+ggplot(soil_core_sub, aes(x = delta.bd, y = -ash.mass, color = treatment)) +
+  geom_point() +
+  geom_path() +
+  facet_grid(.~fence)
+
+ggplot(soil_core_sub, aes(x = delta.moisture, y = -ash.mass, color = treatment)) +
+  geom_point() +
+  geom_path() +
+  facet_grid(.~fence)
+
+# add horizontal lines at the 2009 and 2013 active layer thicknesses?
+ggplot(soil_09_13_ash, aes(x = height, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  facet_grid(fence~treatment)
+
+ggplot(soil_09_13_ash, aes(x = bd, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  facet_grid(fence~treatment)
+
+ggplot(soil_09_13_ash, aes(x = moisture, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  facet_grid(fence~treatment)
+# soil_core_sub <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), calc_ash_depth) %>%
+#   mutate(year = paste('depth.', year, sep = '')) %>%
+#   spread(key = year, value = V1) %>%
+#   mutate(soil.core.sub.ash = depth.2013 - depth.2009) %>%
+#   select(-depth.2009, -depth.2013)
+# 
+# soil_core_sub_2 <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), calc_soil_depth) %>%
+#   mutate(year = paste('depth.', year, sep = '')) %>%
+#   spread(key = year, value = V1) %>%
+#   mutate(soil.core.sub.soil = depth.2013 - depth.2009) %>%
+#   select(-depth.2009, -depth.2013) %>%
+#   full_join(soil_core_sub, by = c('block', 'fence', 'treatment')) %>%
+#   mutate(diff = soil.core.sub.ash - soil.core.sub.soil)
+# 
+# soil_core_sub_3 <- soil_core_sub_2 %>%
+#   gather(key = 'sub_type',
+#          value = 'subsidence',
+#          soil.core.sub.soil:soil.core.sub.ash) %>%
+#   mutate(sub_type = factor(ifelse(sub_type == 'soil.core.sub.soil',
+#                                      'soil',
+#                                      'ash'),
+#                            levels = c('soil', 'ash')),
+#          dummy = 1)
+# 
+# test <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), test.function)
 ####################################################################################################################################
 
 #### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
