@@ -26,7 +26,7 @@ get.height <- Vectorize(function( depth0, depth1, amount, goal ){
     index.upr <- max( which( A >= goal.lwr) )
     layer.height <- depth1[index.upr] - depth0[index.upr]
     need <- goal - A[index.upr]
-    height <- need * (layer.height / amount[index.upr])
+    height <- layer.height * (need/ amount[index.upr])
     tot.height <- depth1[index.upr] + height
   }
   
@@ -73,6 +73,45 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
   return(prop)
 }, 'goal')
 
+get.height <- Vectorize(function( depth0, depth1, amount, goal ){
+  A <- cumsum(amount)
+  if( all( A < goal | goal == 0)){    # if the core isn't deep enough to reach the desired quantity of ash - 5
+    return(NA)
+  }
+  # calc height of core to goal ash content
+  index.upr <- min( which( A >= goal ) ) # layer where we reach the desired quantity of ash
+  start.ash <- A[index.upr] - amount[index.upr] # cumulative amount of ash to the layer below the layer where the goal is met
+  need <- goal - start.ash # how much of the layer where the goal is met that is needed
+  height <- (depth1[index.upr] - depth0[index.upr]) * (need / amount[index.upr]) # height of the layer where the goal is met that is needed
+  tot.height <- depth0[index.upr] + height # add the core height to layer below layer where goal is met to the amount of current layer that is needed
+  
+  return(tot.height)
+}, 'goal')
+
+avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
+  A <- cumsum(amount)
+  goal.lwr <- goal - 5
+  if( all( A < goal | goal == 0)){    # if the core isn't deep enough to reach the desired quantity of ash
+    return(NA)
+  }
+  
+  # calc avg bulk density of core between last and current goals
+  index.lwr <- min(which(A > goal.lwr)) # layer where we reach the quantity of ash that we are starting from
+  index.upr <- min(which(A >= goal)) # layer where we reach the desired quantity of ash
+  start.ash <- A[index.upr] - amount[index.upr] # cumulative amount of ash to the layer below the layer where the goal is met
+  need <- goal - start.ash # amount of ash of the layer where the goal is met that is needed
+  prior.prop <- soil.prop[index.lwr:index.upr]
+  weights <- amount[index.lwr:index.upr]
+  if(length(prior.prop) == 1) {
+    weights <- c(5)
+  } else {
+    weights[1] <- (A[index.lwr] - goal.lwr)
+    weights[length(weights)] <- need
+  }
+  prop <- sum(prior.prop * weights) / 5
+  
+  return(prop)
+}, 'goal')
 
 f(depth0, depth1, amount, goal=1)
 f(depth0, depth1, amount, goal=3)

@@ -62,7 +62,7 @@ get.height <- Vectorize(function( depth0, depth1, amount, goal ){
     index.upr <- max( which( A >= goal.lwr) )
     layer.height <- depth1[index.upr] - depth0[index.upr]
     need <- goal - A[index.upr]
-    height <- need * (layer.height / amount[index.upr])
+    height <- layer.height * (need/ amount[index.upr])
     tot.height <- depth1[index.upr] + height
   }
   
@@ -110,19 +110,19 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
 }, 'goal')
 ####################################################################################################################################
 
-### calculate the height of cores with the same amount of soil mass in 2009 vs. 2013 ################################################
+### calculate the height of cores with the same amount of ash mass in 2009 vs. 2013 ################################################
 ash_mass_09_13 <- soil_09_13 %>%
   select(1:10) %>%
   filter(year == 2009 | year == 2013) %>%
   filter(moisture != is.na(moisture)) %>%
   group_by(year, block, fence, treatment) %>%
   mutate(soil.mass = bulk.density*(depth1 - depth0),
+         soil.mass.tot = cumsum(soil.mass),
          ash.mass = ash*bulk.density*(depth1 - depth0)/1000,
          ash.mass.tot = cumsum(ash.mass))
 
 goal <- seq(0, 55, 5)
 
-# still need to do the next steps with soil normalization, too
 # extract depths to chosen uniform ash mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
 depth <- ash_mass_09_13 %>%
   do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$ash.mass, goal)) })
@@ -147,7 +147,7 @@ soil_09_13_ash <- depth %>%
 
 height <- soil_09_13_ash$depth1 %>%
   diff()
-height <- height[height >= 0]
+height <- height[height > 0]
 
 soil_09_13_ash <- soil_09_13_ash %>%
   filter(!is.na(bd)) %>%
@@ -166,14 +166,13 @@ alt <- ALTsub %>%
   summarise(mean.ALT = mean(ALT, na.rm = TRUE),
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
 
-# join alt with soil_09_13_ash - why isn't filter working? It's not an issue with number rounding...
+# join alt with soil_09_13_ash
 soil_ash_alt <- soil_09_13_ash %>%
   left_join(alt, by = c('year', 'fence', 'treatment')) %>%
-  filter(mean.ALT > depth0 & mean.ALT < depth1)
-
-test <- data.frame(lower = c(0,5,10),
-                   upper = c(5,10,15),
-                   alt = rep(7, 3))
+  filter(-mean.ALT > depth0 & -mean.ALT < depth1 | fence == 3 & treatment == 'c' & year == 2009) %>%
+  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
+                               ash.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
+                               ash.mass + (-mean.ALT-depth1)*ash.mass/height))
 
 # calculate subsidence, change in bd, and change in moisture in each layer
 soil_09_ash <- soil_09_13_ash %>%
@@ -187,40 +186,97 @@ soil_core_sub <- soil_09_13_ash %>%
   arrange(block, fence, treatment, ash.mass) %>%
   mutate(subsidence = height.2013 - height.2009,
          delta.bd = bd.2013 - bd.2009,
-         delta.moisture = moisture.2013 - moisture.2009) %>%
-  select(block, fence, treatment, ash.mass, subsidence, delta.bd, delta.moisture)
+         delta.moisture = moisture.2013 - moisture.2009,
+         type = 'ash') %>%
+  select(type, block, fence, treatment, mass = ash.mass, subsidence, delta.bd, delta.moisture)
+####################################################################################################################################
 
-# add horizontal lines at the 2009 and 2013 active layer thicknesses?
-ggplot(soil_core_sub, aes(x = subsidence, y = -ash.mass, color = treatment)) +
-  geom_point() +
-  geom_path() +
-  facet_grid(.~fence)
+### calculate the height of cores with the same amount of soil mass in 2009 vs. 2013 ###############################################
+goal <- seq(0, 65, 5)
 
-ggplot(soil_core_sub, aes(x = delta.bd, y = -ash.mass, color = treatment)) +
-  geom_point() +
-  geom_path() +
-  facet_grid(.~fence)
+# extract depths to chosen uniform soil mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+depth <- ash_mass_09_13 %>%
+  do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$soil.mass, goal)) })
 
-ggplot(soil_core_sub, aes(x = delta.moisture, y = -ash.mass, color = treatment)) +
-  geom_point() +
-  geom_path() +
-  facet_grid(.~fence)
+# average bulk density for each of the previously calculated depths
+bd <- ash_mass_09_13 %>%
+  do({ data.frame( bd = avg.soil.prop(.$depth0, .$depth1, .$soil.mass, .$bulk.density, goal))})
 
-# add horizontal lines at the 2009 and 2013 active layer thicknesses?
-ggplot(soil_09_13_ash, aes(x = height, y = -ash.mass, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  facet_grid(fence~treatment)
+# average moisture for each of the previously calculated depths
+moisture <- ash_mass_09_13 %>%
+  do({ data.frame( moisture = avg.soil.prop(.$depth0, .$depth1, .$soil.mass, .$moisture, goal))})
 
-ggplot(soil_09_13_ash, aes(x = bd, y = -ash.mass, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  facet_grid(fence~treatment)
+# join depth, bd, and moisture dataframes into one
+soil_09_13_soil <- depth %>%
+  cbind.data.frame(bd = bd$bd, moisture = moisture$moisture) %>%
+  mutate(soil.mass = rep(seq(0, 65, 5), 24)) %>%
+  mutate(depth1 = ifelse(soil.mass == 0,
+                         0,
+                         depth1)) %>%
+  filter(!is.na(depth1)) %>%
+  select(year, block, fence, treatment, soil.mass, depth1, bd, moisture)
 
-ggplot(soil_09_13_ash, aes(x = moisture, y = -ash.mass, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  facet_grid(fence~treatment)
+height <- soil_09_13_soil$depth1 %>%
+  diff()
+height <- height[height >= 0]
+
+soil_09_13_soil <- soil_09_13_soil %>%
+  filter(!is.na(bd)) %>%
+  cbind(height) %>%
+  mutate(depth0 = depth1-height) %>%
+  select(year, block, fence, treatment, soil.mass, depth0, depth1, height, bd, moisture)
+
+# join alt with soil_09_13_soil
+soil_alt <- soil_09_13_soil %>%
+  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
+  filter(-mean.ALT > depth0 & -mean.ALT < depth1 | fence == 3 & treatment == 'c' & year == 2009) %>%
+  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
+                               soil.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
+                               soil.mass + (-mean.ALT-depth1)*soil.mass/height))
+
+# calculate subsidence, change in bd, and change in moisture in each layer
+soil_09_soil <- soil_09_13_soil %>%
+  filter(year == 2009) %>%
+  select(block, fence, treatment, soil.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
+
+soil_core_sub_soil <- soil_09_13_soil %>%
+  filter(year == 2013) %>%
+  select(block, fence, treatment, soil.mass, depth0.2013 = depth0, depth1.2013 = depth1, height.2013 = height, bd.2013 = bd, moisture.2013 = moisture) %>%
+  full_join(soil_09_soil, by = c('block', 'fence', 'treatment', 'soil.mass')) %>%
+  arrange(block, fence, treatment, soil.mass) %>%
+  mutate(subsidence = height.2013 - height.2009,
+         delta.bd = bd.2013 - bd.2009,
+         delta.moisture = moisture.2013 - moisture.2009,
+         type = 'soil') %>%
+  select(type, block, fence, treatment, mass = soil.mass, subsidence, delta.bd, delta.moisture)
+####################################################################################################################################
+
+### Compare soil normalized and ash normalized soil core subsidence ################################################################
+soil_core_sub_2 <- soil_core_sub %>%
+  rbind.data.frame(soil_core_sub_soil)
+
+soil_core_sub_3 <- soil_core_sub_2 %>%
+  group_by(type, block, fence, treatment) %>%
+  summarise(total.subsidence = sum(subsidence, na.rm = TRUE),
+            avg.delta.bd = mean(delta.bd, na.rm = TRUE),
+            se.delta.bd = sd(delta.bd, na.rm = TRUE)/sqrt(n()),
+            avg.delta.moisture = mean(delta.moisture, na.rm = TRUE),
+            se.delta.moisture = sd(delta.moisture, na.rm = TRUE)/sqrt(n())) %>%
+  mutate(total.subsidence = ifelse(total.subsidence == 0 & is.na(avg.delta.bd),
+                                   NA,
+                                   total.subsidence))
+
+soil_core_sub_sum_ash <- soil_core_sub_3 %>%
+  filter(type == 'ash') %>%
+  ungroup() %>%
+  select(block, fence, treatment, subsidence.ash = total.subsidence)
+
+soil_core_sub_4 <- soil_core_sub_3 %>%
+  filter(type == 'soil') %>%
+  ungroup() %>%
+  select(block, fence, treatment, subsidence.soil = total.subsidence) %>%
+  full_join(soil_core_sub_sum_ash, by = c('block', 'fence', 'treatment')) %>%
+  mutate(subsidence.c = subsidence.ash - subsidence.soil)
 # soil_core_sub <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), calc_ash_depth) %>%
 #   mutate(year = paste('depth.', year, sep = '')) %>%
 #   spread(key = year, value = V1) %>%
@@ -248,21 +304,61 @@ ggplot(soil_09_13_ash, aes(x = moisture, y = -ash.mass, color = as.factor(year))
 # test <- ddply(ash_mass_09_13_2, c('year', 'block', 'fence', 'treatment'), test.function)
 ####################################################################################################################################
 
-#### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
-carbon_loss_model <- lm(diff ~ 0 + soil.core.sub.soil, soil_core_sub_2)
-summary(carbon_loss_model)
-slope <- carbon_loss_model$coefficients[1]
-intercept <- 0
-soil_core_sub_conf <- predict(carbon_loss_model, newdata=soil_core_sub_2, interval='confidence') %>%
-  as.data.frame() %>%
-  cbind.data.frame(soil_core_sub_2)
+### Plots of soil profiles #############################################################################
+# plots of change from 2009 to 2013
+# ggplot(soil_core_sub, aes(x = subsidence, y = -ash.mass, color = treatment)) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = treatment, linetype = as.factor(year))) +
+#   facet_grid(.~fence)
+# 
+# ggplot(soil_core_sub, aes(x = delta.bd, y = -ash.mass, color = treatment)) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = treatment, linetype = as.factor(year))) +
+#   facet_grid(.~fence)
+# 
+# ggplot(soil_core_sub, aes(x = delta.moisture, y = -ash.mass, color = treatment)) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = treatment, linetype = as.factor(year))) +
+#   facet_grid(.~fence)
 
-sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = diff)) +
-  geom_ribbon(data = soil_core_sub_conf, aes(x = soil.core.sub.soil, ymin = lwr, ymax = upr), fill = 'gray') +
-  geom_segment(x = min(soil_core_sub_2$soil.core.sub.soil),
-               y = slope*min(soil_core_sub_2$soil.core.sub.soil),
-               xend = max(soil_core_sub_2$soil.core.sub.soil),
-               yend = slope*max(soil_core_sub_2$soil.core.sub.soil),
+# plots with 2009 and 2013 values compared in one facet
+ggplot(soil_09_13_ash, aes(x = height, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = as.factor(year))) +
+  facet_grid(fence~treatment)
+
+ggplot(soil_09_13_ash, aes(x = bd, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = as.factor(year))) +
+  facet_grid(fence~treatment)
+
+ggplot(soil_09_13_ash, aes(x = moisture, y = -ash.mass, color = as.factor(year))) +
+  geom_point() +
+  geom_path() +
+  geom_hline(data = soil_ash_alt, aes(yintercept = -mean.ALT.ash, color = as.factor(year))) +
+  facet_grid(fence~treatment)
+####################################################################################################################################
+
+#### Compare subsidence calculated with and without carbon loss (ash vs. soil) #####################################################
+carbon_loss_model <- lm(subsidence.c ~ subsidence.soil, soil_core_sub_4)
+summary(carbon_loss_model)
+intercept <- carbon_loss_model$coefficients[1]
+slope <- carbon_loss_model$coefficients[2]
+soil_core_sub_conf <- predict(carbon_loss_model, newdata=soil_core_sub_4, interval='confidence') %>%
+  as.data.frame() %>%
+  cbind.data.frame(soil_core_sub_4)
+
+sub_carbon_fig <- ggplot(soil_core_sub_4, aes(x = subsidence.soil, y = subsidence.c)) +
+  geom_ribbon(data = soil_core_sub_conf, aes(x = subsidence.soil, ymin = lwr, ymax = upr), fill = 'gray') +
+  geom_segment(x = min(soil_core_sub_4$subsidence.soil),
+               y = slope*min(soil_core_sub_4$subsidence.soil),
+               xend = max(soil_core_sub_4$subsidence.soil),
+               yend = slope*max(soil_core_sub_4$subsidence.soil),
                color = "black") +
   geom_point(aes(color = treatment)) +
   scale_color_manual(values = c("#006699", "#990000"),
@@ -273,10 +369,10 @@ sub_carbon_fig <- ggplot(soil_core_sub_2, aes(x = soil.core.sub.soil, y = diff))
   xlab("Subsidence (bulk density)") +
   ylab("Subsidence (C loss)") +
   annotate('text', x = 3, y = -15, 
-           label = paste('y = ', round(slope, 2), 'x', sep = ''), 
+           label = paste('y = ', round(intercept, 2), ' + ', round(slope, 2), 'x', sep = ''), 
            size = 3) +
   annotate('text', x = 0.5, y = -18, 
-           label = 'p-value = 0.038', 
+           label = 'p-value = 0.21', 
            size = 3) +
   theme(axis.title.x = element_text(size = 12),
         axis.text.x  = element_text(size = 8),
