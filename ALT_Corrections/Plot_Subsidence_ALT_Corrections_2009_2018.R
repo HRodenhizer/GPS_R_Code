@@ -430,7 +430,7 @@ par(mfrow=c(1,1))
 hist(subpointsC$subsidence)
 
 # rerun best model with REML = TRUE
-subsidence_model <- lmer(subsidence ~ 0 + time + time:treatment3  + 
+subsidence_model <- lmer(subsidence ~ 0 + time:treatment3  + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
