@@ -26,36 +26,53 @@ emldtm <- raster::merge(raster(filenames[1]),
                         raster(filenames[2]),
                         raster(filenames[3]),
                         raster(filenames[4])) # only the four tiles right around eml
-filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_389000_7085000_image.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_389000_7086000_image.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7085000_image.tif',
+filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7085000_image.tif',
                'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7086000_image.tif')
 emlrgb <- raster::merge(brick(filenames[1]),
-                        brick(filenames[2]),
-                        brick(filenames[3]),
-                        brick(filenames[4])) # only the four tiles right around eml
+                        brick(filenames[2])) # only the two tiles right around cipehr
 # filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif', full.names = TRUE)
 # neondtm <- raster(filenames[1])
 # for (i in 2:length(filenames)) {
 #   neondtm <- raster::merge(neondtm, raster(filenames[i]))
 # }
+rm(filenames)
 ##############################################################################################################
 
 ### Select/clip to CiPEHR ####################################################################################
+# transects as originally done
 transects2009 <- points2009 %>%
   filter(type == 'fence' | type == 'trans') %>%
-  st_transform(crs = st_crs(emldtm))
+  st_transform(crs = st_crs(emldtm)) %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf() %>%
+  mutate(block = ifelse(fence == 1 | fence == 2,
+                        'A',
+                        ifelse(fence == 3 | fence == 4,
+                               'B',
+                               'C'))) %>%
+  dplyr::select(X, Y, block)
 
+# transects as done with stakeout
 transects2018 <- points2018 %>%
   st_zm() %>%
   mutate(Name = as.numeric(as.character(Name))) %>%
   filter(Name > 10000 & Name < 13000) %>%
-  st_transform(crs = st_crs(emldtm))
+  st_transform(crs = st_crs(emldtm)) %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf()%>%
+  mutate(block = ifelse(Name >= 10000 & Name < 11000,
+                        'A',
+                        ifelse(Name >= 11000 & Name < 12000,
+                               'B',
+                               'C'))) %>%
+  dplyr::select(X, Y, block)
 
+# start getting three block locations
 cipehrblocks <- emlpoints %>%
   filter(Exp == 'CiPEHR') %>%
   st_transform(crs = st_crs(emldtm))
 
+# overall cipehr location
 cipehr <- cipehrblocks %>%
   st_transform(crs = 4326) %>%
   cbind.data.frame(st_coordinates(.)) %>%
@@ -63,9 +80,11 @@ cipehr <- cipehrblocks %>%
   summarise(X = mean(X),
             Y = mean(Y))
 
+# final formatting for location of three blocks
 cipehrblocks <- cipehrblocks %>%
   cbind.data.frame(st_coordinates(.))
 
+# create hillshade of dtm
 plot(emldtm)
 emlslope <- terrain(emldtm, opt = 'slope')
 plot(emlslope)
@@ -74,24 +93,63 @@ plot(emlaspect)
 emlhillshd <- hillShade(emlslope, emlaspect, direction = 45)
 plot(emlhillshd)
 rm(emlslope, emlaspect)
-##############################################################################################################
 
-### Convert raster to dataframe for plotting with ggplot #####################################################
+# convert to dataframe for graphing
 emlhillshd.df <- as.data.frame(emlhillshd, xy = TRUE)
+rm(emlhillshd, emldtm)
+
+# clip emlrgb to three separate rasters for each block
 emlrgb <- reclassify(emlrgb, cbind(NA, -9999))
+
+blockimagery <- list()
+for (i in 1:length(cipehrblocks$Block)) {
+ blockimagery[[i]] <- crop(emlrgb, as(subset(transects2018, Name >= 10000 + (i-1)*1000 & Name < 10000 + i*1000), 'Spatial'))
+ rm(i)
+}
+
+
+
+# rgbnorm <- list()
+# tran2018norm <- data.frame()
+# 
+# for (i in 1:length(blockimagery)) {
+#   minx <- blockimagery[[i]]@extent@xmin
+#   miny <- blockimagery[[i]]@extent@ymin
+#   temp <- as.data.frame(blockimagery[[i]], xy = TRUE) %>%
+#     mutate(x = round(x - minx),
+#            y = round(y - miny),
+#            block = c('A', 'B', 'C')[i]) %>%
+#     rename(r = layer.1,
+#            g = layer.2,
+#            b = layer.3)
+#   
+#   rgbnorm[[i]] <- temp
+#   temp <- transects2018 %>%
+#     filter(Name >= 10000 + (i-1)*1000 & Name < 10000 + i*1000) %>%
+#     cbind.data.frame(st_coordinates(.)) %>%
+#     mutate(X = round(X - minx),
+#            Y = round(Y - miny),
+#            block = c('A', 'B', 'C')[i]) %>%
+#     dplyr::select(X, Y, block)
+#   tran2018norm <- rbind.data.frame(tran2018norm, temp)
+#   rm(temp, i)
+# }
 ##############################################################################################################
 
 ### Plot block location over hillshade #######################################################################
-# emlimage <- ggRGB(emlrgb, r = 1, g = 2, b = 3, stretch = 'lin')
-# 
-# emlimage +
-#   geom_point(data = cipehrblocks, aes(x = X, y = Y), inherit.aes = FALSE) +
-#   theme_few() +
-#   scale_fill_gradient(low = '#FFFFFF', high = '#000000', guide = FALSE) +
-#   theme(axis.title = element_blank(),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1)
+# convert the imagery to spcs so that the 2018 transects look straight? Don't crop the imagery quite to the transects?
+emlimage1 <- ggRGB(blockimagery[[1]], r = 1, g = 2, b = 3, stretch = 'lin')
+
+emlimage1 +
+  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'red', size = 3) +
+  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
+  theme_few() +
+  scale_x_continuous(name = 'X (m)') +
+  scale_y_continuous(name = 'Y (m)') +
+  theme(axis.title = element_text(size = 12),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1)
 
 akcenter <- as.numeric(geocode('alaska, usa'))
 akmap <- ggmap(get_googlemap(center = akcenter, zoom = 4, maptype = 'satellite'))
@@ -113,15 +171,17 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   scale_fill_gradient(low = '#000000', high = '#DDDDDD',
                       guide = FALSE) +
   scale_x_continuous(limits = c(389000, 391000),
-                     expand = c(0,0)) +
+                     expand = c(0,0),
+                     name = '(m)') +
   scale_y_continuous(limits = c(7085000, 7087000),
-                     expand = c(0,0)) +
-  theme(axis.title = element_blank(),
+                     expand = c(0,0),
+                     name = '(m)') +
+  theme(axis.title = element_text(size = 12),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
         aspect.ratio = 1) +
   coord_fixed()
-emlmap
+# emlmap
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500)
