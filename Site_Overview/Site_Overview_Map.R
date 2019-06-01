@@ -12,6 +12,7 @@ library(ggmap)
 library(ggthemes)
 library(viridis)
 library(RStoolbox)
+library(ggpubr)
 ##############################################################################################################
 
 ### Load Data ################################################################################################
@@ -39,10 +40,11 @@ rm(filenames)
 ##############################################################################################################
 
 ### Select/clip to CiPEHR ####################################################################################
+spcsak4 <- st_crs(points2018)[[2]]
+
 # transects as originally done
 transects2009 <- points2009 %>%
   filter(type == 'fence' | type == 'trans') %>%
-  st_transform(crs = st_crs(emldtm)) %>%
   cbind.data.frame(st_coordinates(.)) %>%
   st_as_sf() %>%
   mutate(block = ifelse(fence == 1 | fence == 2,
@@ -57,7 +59,6 @@ transects2018 <- points2018 %>%
   st_zm() %>%
   mutate(Name = as.numeric(as.character(Name))) %>%
   filter(Name > 10000 & Name < 13000) %>%
-  st_transform(crs = st_crs(emldtm)) %>%
   cbind.data.frame(st_coordinates(.)) %>%
   st_as_sf()%>%
   mutate(block = ifelse(Name >= 10000 & Name < 11000,
@@ -98,12 +99,27 @@ rm(emlslope, emlaspect)
 emlhillshd.df <- as.data.frame(emlhillshd, xy = TRUE)
 rm(emlhillshd, emldtm)
 
-# clip emlrgb to three separate rasters for each block
-emlrgb <- reclassify(emlrgb, cbind(NA, -9999))
+# clip emlrgb to three separate rasters for each block and transform to SPCS AK 4 - this will take awhile!
+emlrgb <- reclassify(emlrgb, cbind(NA, -9999)) %>%
+  projectRaster(emlrgb, crs = spcsak4)
+
+buffer2018 <- transects2018 %>%
+  as.data.frame() %>%
+  group_by(block) %>%
+    summarise(xmin = min(X)-5,
+            xmax = max(X)+5,
+            ymin = min(Y)-5,
+            ymax = max(Y)+5) %>%
+  gather(key = xtype, value = X, xmin:xmax) %>%
+  gather(key = ytype, value = Y, ymin:ymax) %>%
+  dplyr::select(X, Y, block) %>%
+  st_as_sf(coords = c('X', 'Y'), crs = spcsak4, remove = FALSE) %>%
+  rbind.data.frame(transects2018) %>%
+  arrange(block, X, Y)
 
 blockimagery <- list()
 for (i in 1:length(cipehrblocks$Block)) {
- blockimagery[[i]] <- crop(emlrgb, as(subset(transects2018, Name >= 10000 + (i-1)*1000 & Name < 10000 + i*1000), 'Spatial'))
+ blockimagery[[i]] <- crop(emlrgb, as(subset(buffer2018, block == c('A', 'B', 'C')[i]), 'Spatial'))
  rm(i)
 }
 
@@ -137,19 +153,74 @@ for (i in 1:length(cipehrblocks$Block)) {
 ##############################################################################################################
 
 ### Plot block location over hillshade #######################################################################
-# convert the imagery to spcs so that the 2018 transects look straight? Don't crop the imagery quite to the transects?
-emlimage1 <- ggRGB(blockimagery[[1]], r = 1, g = 2, b = 3, stretch = 'lin')
+# better to have 2009 and 2018 separate or together? Is it worth using the imagery? It looks really busy.
+emlimageA <- ggRGB(blockimagery[[1]], r = 1, g = 2, b = 3, stretch = 'lin')
+emlimageB <- ggRGB(blockimagery[[2]], r = 1, g = 2, b = 3, stretch = 'lin')
+emlimageC <- ggRGB(blockimagery[[3]], r = 1, g = 2, b = 3, stretch = 'lin')
 
-emlimage1 +
-  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'red', size = 3) +
-  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
-  theme_few() +
-  scale_x_continuous(name = 'X (m)') +
-  scale_y_continuous(name = 'Y (m)') +
-  theme(axis.title = element_text(size = 12),
+A2009 <- emlimageA +
+  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
+  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  ggtitle('A') +
+  theme_map() +
+  theme(axis.title = element_blank(),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5))
+
+B2009 <- emlimageB +
+  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
+  geom_point(data = subset(transects2009, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  ggtitle('B') +
+  theme_map() +
+  theme(axis.title = element_blank(),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5))
+
+C2009 <- emlimageC +
+  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
+  geom_point(data = subset(transects2009, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  ggtitle('C') +
+  theme_map() +
+  theme(axis.title = element_blank(),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5))
+
+figure <- ggarrange(A2009, B2009, C2009, ncol = 3, nrow = 1)
+figure
+
+A2018 <- emlimageA +
+  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
+  theme_map() +
+  theme(axis.title = element_blank(),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
         aspect.ratio = 1)
+
+B2018 <- emlimageB +
+  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
+  theme_map() +
+  theme(axis.title = element_blank(),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1)
+
+C2018 <- emlimageC +
+  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
+  theme_map() +
+  theme(axis.title = element_blank(),
+        axis.text.x  = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        aspect.ratio = 1)
+
+figure <- ggarrange(A2009, B2009, C2009, A2018, B2018, C2018, ncol = 3, nrow = 2)
+figure
+# geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
 
 akcenter <- as.numeric(geocode('alaska, usa'))
 akmap <- ggmap(get_googlemap(center = akcenter, zoom = 4, maptype = 'satellite'))
