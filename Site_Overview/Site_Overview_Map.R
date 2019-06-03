@@ -17,6 +17,9 @@ library(ggpubr)
 
 ### Load Data ################################################################################################
 points2009 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2009_SPCSAK4_corrected.shp')
+points2011 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2011_SPCSAK4_corrected.shp')
+points2015 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2015_SPCSAK4_corrected.shp')
+points2016 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2016_SPCSAK4.shp')
 points2018 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2018_SPCSAK4.shp')
 emlpoints <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Sites.shp')
 filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7085000_DTM.tif',
@@ -42,6 +45,20 @@ rm(filenames)
 ### Select/clip to CiPEHR ####################################################################################
 spcsak4 <- st_crs(points2018)[[2]]
 
+# transects as done with stakeout
+transects2018 <- points2018 %>%
+  st_zm() %>%
+  mutate(Name = as.numeric(as.character(Name))) %>%
+  filter(Name > 10000 & Name < 13000) %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf()%>%
+  mutate(block = ifelse(Name >= 10000 & Name < 11000,
+                        'A',
+                        ifelse(Name >= 11000 & Name < 12000,
+                               'B',
+                               'C'))) %>%
+  dplyr::select(X, Y, block)
+
 # transects as originally done
 transects2009 <- points2009 %>%
   filter(type == 'fence' | type == 'trans') %>%
@@ -54,16 +71,37 @@ transects2009 <- points2009 %>%
                                'C'))) %>%
   dplyr::select(X, Y, block)
 
-# transects as done with stakeout
-transects2018 <- points2018 %>%
-  st_zm() %>%
-  mutate(Name = as.numeric(as.character(Name))) %>%
-  filter(Name > 10000 & Name < 13000) %>%
+transects2011 <- points2011 %>%
+  filter(type == 'fence' | type == 'a' | type == 'b' | type == 'c') %>%
   cbind.data.frame(st_coordinates(.)) %>%
-  st_as_sf()%>%
-  mutate(block = ifelse(Name >= 10000 & Name < 11000,
+  st_as_sf() %>%
+  mutate(block = ifelse(fence == 1 | fence == 2,
                         'A',
-                        ifelse(Name >= 11000 & Name < 12000,
+                        ifelse(fence == 3 | fence == 4,
+                               'B',
+                               'C'))) %>%
+  dplyr::select(X, Y, block)
+
+# will have to filter geographically
+transects2015 <- points2015 %>%
+  filter(type == 'fence' | type == 'trans') %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf() %>%
+  mutate(block = ifelse(fence == 1 | fence == 2,
+                        'A',
+                        ifelse(fence == 3 | fence == 4,
+                               'B',
+                               'C'))) %>%
+  dplyr::select(X, Y, block)
+
+transects2016 <- points2016 %>%
+  st_zm() %>%
+  filter(Type == 'fence' | Type == 'trans') %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf() %>%
+  mutate(block = ifelse(nrow(st_crop(., filter(transects2018, block == 'A'))) > 0,
+                        'A',
+                        ifelse(nrow(st_crop(., filter(transects2018, block == 'B'))) > 0,
                                'B',
                                'C'))) %>%
   dplyr::select(X, Y, block)
