@@ -99,12 +99,15 @@ transects2016 <- points2016 %>%
   filter(Type == 'fence' | Type == 'trans') %>%
   cbind.data.frame(st_coordinates(.)) %>%
   st_as_sf() %>%
-  mutate(block = ifelse(nrow(st_crop(., filter(transects2018, block == 'A'))) > 0,
-                        'A',
-                        ifelse(nrow(st_crop(., filter(transects2018, block == 'B'))) > 0,
-                               'B',
-                               'C'))) %>%
+  arrange(X, Y) %>%
+  mutate(block = c(rep('A', 212), rep('B', 192), rep('C', 219))) %>%
   dplyr::select(X, Y, block)
+
+# ifelse(nrow(st_crop(., filter(transects2018, block == 'A'))) > 1,
+#        'A',
+#        ifelse(nrow(st_crop(., filter(transects2018, block == 'B'))) > 1,
+#               'B',
+#               'C'))
 
 # start getting three block locations
 cipehrblocks <- emlpoints %>%
@@ -137,9 +140,9 @@ rm(emlslope, emlaspect)
 emlhillshd.df <- as.data.frame(emlhillshd, xy = TRUE)
 rm(emlhillshd, emldtm)
 
-# clip emlrgb to three separate rasters for each block and transform to SPCS AK 4 - this will take awhile!
-emlrgb <- reclassify(emlrgb, cbind(NA, -9999)) %>%
-  projectRaster(emlrgb, crs = spcsak4)
+# clip emlrgb to three separate rasters for each block and transform to SPCS AK 4 - this whole section will take awhile!
+emlrgb <- reclassify(emlrgb, cbind(NA, -9999))
+emlrgb <- projectRaster(emlrgb, crs = spcsak4)
 
 buffer2018 <- transects2018 %>%
   as.data.frame() %>%
@@ -197,67 +200,146 @@ emlimageB <- ggRGB(blockimagery[[2]], r = 1, g = 2, b = 3, stretch = 'lin')
 emlimageC <- ggRGB(blockimagery[[3]], r = 1, g = 2, b = 3, stretch = 'lin')
 
 A2009 <- emlimageA +
-  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
-  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  geom_point(data = subset(transects2016, block == 'A'), aes(x = X, y = Y, color = '2016'), inherit.aes = FALSE, size = 1) +
+  geom_point(data = subset(transects2015, block == 'A'), aes(x = X, y = Y, color = '2015'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
+  geom_point(data = subset(transects2011, block == 'A'), aes(x = X, y = Y, color = '2011'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
+  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y, color = '2009'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
+  scale_color_manual(values = c('2009' = 'white', '2011' = '#CCCCCC', '2015' = '#666666', '2016' = 'black')) +
   ggtitle('A') +
-  theme_map() +
-  theme(axis.title = element_blank(),
-        axis.text.x  = element_text(size = 8),
+  theme_few() +
+  scale_x_continuous(limits = c(537922, 537972),
+                     breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
+                     labels = c(seq(0, 50, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1100957, 1101007),
+                     breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
+                     labels = c(seq(0, 50, 10)),
+                     name = '2009 - 2016',
+                     expand = c(0, 0)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 12), axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
         aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5))
+        plot.title = element_text(size = 12, hjust = 0.5),
+        legend.title = element_blank(),
+        legend.justification = c(0, 0),
+        legend.position = c(0.0025, 0),
+        legend.text = element_text(size = 8),
+        legend.margin = margin(t = 0, b = 2, r = 2),
+        legend.key.height = unit(0.5, 'line'),
+        plot.margin = unit(c(10, 0, 0, 0), "mm"))
 
 B2009 <- emlimageB +
-  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
-  geom_point(data = subset(transects2009, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  geom_point(data = subset(transects2016, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
+  geom_point(data = subset(transects2015, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
+  geom_point(data = subset(transects2011, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
+  geom_point(data = subset(transects2009, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
   ggtitle('B') +
-  theme_map() +
+  theme_few() +
+  scale_x_continuous(limits = c(537983, 538028),
+                     breaks = c(537983, 537993, 538003, 538013, 538023),
+                     labels = c(seq(0, 40, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1101090, 1101142),
+                     breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
+                     labels = c(seq(0, 50, 10)),
+                     name = '2009 - 2016',
+                     expand = c(0, 0)) +
   theme(axis.title = element_blank(),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
         aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5))
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.margin = unit(c(10, 0, 0, 0), "mm"))
 
 C2009 <- emlimageC +
-  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'black') +
-  geom_point(data = subset(transects2009, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2, alpha = 0.8, color = 'white') +
+  geom_point(data = subset(transects2016, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
+  geom_point(data = subset(transects2015, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
+  geom_point(data = subset(transects2011, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
+  geom_point(data = subset(transects2009, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
   ggtitle('C') +
-  theme_map() +
+  theme_few() +
+  scale_x_continuous(limits = c(538103, 538149),
+                     breaks = c(538103, 538113, 538123, 538133, 538143),
+                     labels = c(seq(0, 40, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1101012, 1101062),
+                     breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
+                     labels = c(seq(0, 50, 10)),
+                     name = '2009 - 2016',
+                     expand = c(0, 0)) +
   theme(axis.title = element_blank(),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
         aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5))
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.margin = unit(c(10, 0, 0, 0), "mm"))
 
-figure <- ggarrange(A2009, B2009, C2009, ncol = 3, nrow = 1)
-figure
+# figure <- ggarrange(A2009, B2009, C2009, ncol = 3, nrow = 1)
+# figure
 
 A2018 <- emlimageA +
-  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
-  theme_map() +
-  theme(axis.title = element_blank(),
+  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
+  theme_few() +
+  scale_x_continuous(limits = c(537922, 537972),
+                     breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
+                     labels = c(seq(0, 50, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1100957, 1101007),
+                     breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
+                     labels = c(seq(0, 50, 10)),
+                     name = '2017 - 2018',
+                     expand = c(0, 0)) +
+  ggtitle('') +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 12),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
-        aspect.ratio = 1)
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.margin = unit(c(0, 0, 10, 0), "mm"))
 
 B2018 <- emlimageB +
-  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
-  theme_map() +
+  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
+  theme_few() +
+  scale_x_continuous(limits = c(537983, 538028),
+                     breaks = c(537983, 537993, 538003, 538013, 538023),
+                     labels = c(seq(0, 40, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1101090, 1101142),
+                     breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
+                     labels = c(seq(0, 50, 10)),
+                     expand = c(0, 0)) +
+  ggtitle('') +
   theme(axis.title = element_blank(),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
-        aspect.ratio = 1)
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.margin = unit(c(0, 0, 10, 0), "mm"))
 
 C2018 <- emlimageC +
-  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 2) +
-  theme_map() +
+  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
+  theme_few() +
+  scale_x_continuous(limits = c(538103, 538149),
+                     breaks = c(538103, 538113, 538123, 538133, 538143),
+                     labels = c(seq(0, 40, 10)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(1101012, 1101062),
+                     breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
+                     labels = c(seq(0, 50, 10)),
+                     expand = c(0, 0)) +
+  ggtitle('') +
   theme(axis.title = element_blank(),
         axis.text.x  = element_text(size = 8),
         axis.text.y = element_text(size = 8),
-        aspect.ratio = 1)
+        aspect.ratio = 1,
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.margin = unit(c(0, 0, 10, 0), "mm"))
 
-figure <- ggarrange(A2009, B2009, C2009, A2018, B2018, C2018, ncol = 3, nrow = 2)
-figure
+transects <- ggarrange(A2009, B2009, C2009, A2018, B2018, C2018, ncol = 3, nrow = 2)
+transects
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/gps_transects.jpg', transects, width = 190, height = 120, units = 'mm')
 # geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
 
 akcenter <- as.numeric(geocode('alaska, usa'))
@@ -280,18 +362,17 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   scale_fill_gradient(low = '#000000', high = '#DDDDDD',
                       guide = FALSE) +
   scale_x_continuous(limits = c(389000, 391000),
-                     expand = c(0,0),
-                     name = '(m)') +
+                     expand = c(0,0)) +
   scale_y_continuous(limits = c(7085000, 7087000),
-                     expand = c(0,0),
-                     name = '(m)') +
-  theme(axis.title = element_text(size = 12),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1) +
+                     expand = c(0,0)) +
+  theme(axis.title = element_blank(),
+        axis.text = element_text(size = 8),
+        aspect.ratio = 1,
+        plot.margin = unit(c(0, 10, 0, 5), "mm")) +
   coord_fixed()
 # emlmap
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500)
 fullmap
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview.jpg', fullmap, width = 190, height = 190, units = 'mm')
