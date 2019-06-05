@@ -551,16 +551,12 @@ mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour 
                      breaks = seq(-0.9, 0.1, .1),
                      labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
-  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
-        axis.title.y = element_text(size = 12),
-        axis.text.y = element_text(size = 8),
-        legend.text = element_text(size = 8),
+  theme(text = element_text(size = 8),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0, 0),
         legend.position=c(0.01, 0.01),
         legend.title = element_blank(),
-        plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12)) +
+        plot.title = element_text(hjust = 0.5)) +
   coord_fixed(ratio = 10) +
   annotate('text', x = 0.7, y = -0.7, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
 
@@ -640,16 +636,12 @@ gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction
                                          labels = c(150, 100, 50, 0))) +
   facet_grid(. ~ treatment) +
   theme_few() +
-  theme(legend.title=element_blank(),
-        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
-        axis.title.y = element_text(size = 12),
-        axis.text.y = element_text(size = 8),
-        legend.text = element_text(size = 8),
+  theme(text = element_text(size = 8),
+        legend.title=element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0,0),
         legend.position=c(0.01,0.01),
-        plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12))
+        plot.title = element_text(hjust = 0.5))
 
 gtest
 
@@ -678,19 +670,17 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
                                          labels = c(300, '', 200, '', 100, '', 0))) +
   facet_grid(. ~ treatment) +
   theme_few() +
-  guides(color = guide_legend(order = 1),
-         fill = guide_legend(order = 2)) +
-  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 8),
-        axis.title.y = element_text(size = 12),
-        axis.text.y = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        legend.text = element_text(size = 8),
-        legend.justification = c(0, 0),
-        legend.position = c(0.01, 0.01),
+  guides(color = guide_legend(order = 2),
+         fill = guide_legend(order = 1)) +
+  theme(text = element_text(size = 8),
+        strip.text.x = element_text(color = 'black'),
+        legend.title = element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
+        legend.justification=c(0,0),
+        legend.position=c(0.01,0.01),
         legend.box = 'horizontal',
         plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12))
+        panel.spacing = unit(1, "lines"))
 gtest2
 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 6, width = 9.5)
@@ -733,15 +723,13 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
                      expand = c(0,0),
                      name = 'Depth (cm)') +
   theme_few() +
-  theme(axis.title = element_text(size = 12),
-        axis.text = element_text(size = 8),
-        strip.text.x = element_text(size = 12, color = 'black'),
-        axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5, size = 8),
+  theme(text = element_text(size = 8),
+        strip.text.x = element_text(color = 'black'),
+        axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5),
         legend.justification=c(0,0),
         legend.position=c(0,0),
         legend.background = element_rect(color="grey30", size=.5),
         legend.title = element_blank(),
-        legend.text = element_text(size = 8),
         panel.spacing = unit(1, "lines"))
 
 g4
