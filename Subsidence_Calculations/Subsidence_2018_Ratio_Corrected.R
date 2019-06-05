@@ -16,6 +16,7 @@ library(maptools)
 # library(cowplot)
 library(plot3D)
 library(magick)
+library(sf)
 
 ##################### Import raster files ##############################################
 filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/', full.names = TRUE)
@@ -90,7 +91,6 @@ Fences <- fortify(Fences) %>%
                         ifelse(fence >= 5,
                                'C',
                                'B')))
-
 ########################################################################################
 
 ###### Convert subsidence to dataframe for graphing ############################################
@@ -152,13 +152,12 @@ sub_map_filled <- ggplot(Subsidence.df, aes(x=long.norm, y=lat.norm, fill=Sub)) 
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
-        axis.title.x = element_text(size = 10),
-        axis.title.y = element_text(size = 10)) +
+        text = element_text(size = 8)) +
   ggtitle('Subsidence at CiPEHR/DryPEHR\n(Relative to 2009)')
 
 sub_map_filled
 
-# map with all years (including gap filled data)
+# map without gapfilled data
 sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long.norm, y=lat.norm, fill=Sub)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
   geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
@@ -166,22 +165,20 @@ sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long
   coord_fixed() +
   theme_few() +
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.5),
-                     direction = -1) +
+                     limits = c(-1.0, 0.5)) +
   scale_color_manual('Snow Fence',
                      values = 'black') +
   scale_x_continuous(name = 'Distance (m)') +
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
-        axis.title.x = element_text(size = 10),
-        axis.title.y = element_text(size = 10)) +
-  ggtitle('Subsidence at CiPEHR/DryPEHR\n(Relative to 2009)')
+        text = element_text(size = 8),
+        strip.text.y = element_text(angle = 0))
 
 sub_map
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.jpg', sub_map)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected.pdf', sub_map)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.jpg', sub_map, width = 190, height = 105, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.pdf', sub_map, width = 190, height = 105, units = 'mm')
 ########################################################################################
 
 ### Read in Variance data for graphing #################################################
@@ -251,8 +248,8 @@ var_map <- ggplot(variance.df, aes(x=long.norm, y=lat.norm, fill=var)) +
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
-        axis.title.x = element_text(size = 10),
-        axis.title.y = element_text(size = 10))
+        text = element_text(size = 8),
+        strip.text.y = element_text(angle = 0))
 
 var_map
 
