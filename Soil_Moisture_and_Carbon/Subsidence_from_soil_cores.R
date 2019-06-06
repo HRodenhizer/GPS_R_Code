@@ -43,7 +43,6 @@ Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
 ####################################################################################################################################
 
-
 ### functions necessary for following code #########################################################################################
 get.height <- Vectorize(function( depth0, depth1, amount, goal ){
   A <- cumsum(amount)
@@ -433,11 +432,7 @@ sub_carbon_fig <- ggplot(soil_core_sub_summary_2, aes(x = subsidence.soil, y = s
   annotate('text', x = 1, y = -18, 
            label = 'p-value = 0.06', 
            size = 3) +
-  theme(axis.title.x = element_text(size = 12),
-        axis.text.x  = element_text(size = 8),
-        axis.title.y = element_text(size = 12),
-        axis.text.y = element_text(size = 8),
-        legend.text = element_text(size = 8))
+  theme(text = element_text(size = 8))
 sub_carbon_fig
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Carbon_Contribution.jpg', sub_carbon_fig, height = 75, width = 115, units = 'mm')
 

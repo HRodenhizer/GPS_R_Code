@@ -51,7 +51,23 @@ ALTdata <- read_excel("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD", full.names = TRUE, pattern = '\\.csv$')
 lst <- lapply(filenames, read.csv)
 WTD <- rbindlist(lst, fill=T)
-############################################################################################################
+
+# Variance data
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance', full.names = TRUE, pattern = "\\.tif$")
+variance1 <- list(stack(filenames[1:4]), stack(filenames[7:10]), stack(filenames[13:16])) # stack all but 2017 and 2018 which haven't been clipped
+variance2 <- list(stack(filenames[5:6]), stack(filenames[11:12]), stack(filenames[17:18]))
+blocks <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
+
+# clip 2017 and 2018 data and join with the rest
+variance <- list()
+for (i in 1:length(variance2)) {
+  temp.block <- blocks %>%
+    filter(Block == unique(Block)[i])
+  var.mask <- mask(variance2[[i]], temp.block)
+  variance[[i]] <- stack(variance1[[i]], var.mask)
+  variance[[i]] <- brick(variance[[i]])
+}
+#######################################################################################
 
 ######## Extract subsidence values from rasters using plot locations from plotcoords data frames and format to join with plotcoords again ########
 ### CiPEHR
@@ -130,9 +146,55 @@ Sub_extract <- CiPEHR_extract %>%
   dplyr::select(year, exp, block, fence, plot, treatment, subsidence, time)
 
 # write.table(Sub_extract, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.txt', sep = '\t', row.names = FALSE)
-
 ############################################################################################################
-  
+
+######## Extract variance values from rasters using plot locations ########
+# need to do this with drypehr as well and figure out error associated with gap filled data...
+se_extract <- data.frame()
+se_subsidence <- data.frame()
+for (i in 1: length(variance)) {
+  plotcoords.temp <- plotcoords %>%
+    filter(block == i & exp == 'CiPEHR')
+  se_extract_temp <- raster::extract(variance[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_brick[[i]]), df = TRUE) %>%
+    dplyr::select(var2009 = 2,
+                  var2011 = 3,
+                  var2015 = 4,
+                  var2016 = 5,
+                  var2017 = 6,
+                  var2018 = 7,
+                  -ID) %>%
+    cbind.data.frame(plotcoords.temp) %>%
+    mutate(se.2009 = sqrt(var2009),
+           se.2011 = sqrt(var2011),
+           se.2015 = sqrt(var2015),
+           se.2016 = sqrt(var2016),
+           se.2017 = sqrt(var2017),
+           se.2018 = sqrt(var2018)) %>%
+    select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation, geometry)
+  se_subsidence_temp <- se_extract_temp %>%
+    gather(key = year, value = se, se.2009:se.2018) %>%
+    group_by(exp, block, fence, plot, Easting, Northing, Elevation) %>%
+    mutate(year = as.numeric(str_sub(year, 4, 7)),
+           time = year - 2009,
+           treatment = ifelse(plot == 1 | plot == 3,
+                              'Air Warming',
+                              ifelse(plot == 2 | plot == 4,
+                                     'Control',
+                                     ifelse(plot == 5 | plot == 7,
+                                            'Air + Soil Warming',
+                                            'Soil Warming'))),
+           sub.se = ifelse(year == 2009,
+                           0,
+                           sqrt(se^2 + first(se)^2)))
+  se_extract <- rbind.data.frame(se_extract, se_extract_temp)
+  se_subsidence <- rbind.data.frame(se_subsidence, se_subsidence_temp)
+  rm(i, plotcoords.temp, se_extract_temp)
+}
+
+Sub_extract <- Sub_extract %>%
+  full_join()
+############################################################################################################
+
 ######################### Prep ALT data and join with sub data #############################################
 # Duplicate plot 2 for drypehr a
 ALTdata.dry <- ALTdata %>%

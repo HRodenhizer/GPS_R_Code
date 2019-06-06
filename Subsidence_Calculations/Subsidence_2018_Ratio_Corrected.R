@@ -241,7 +241,7 @@ var_map <- ggplot(variance.df, aes(x=long.norm, y=lat.norm, fill=var)) +
   facet_grid(block ~ year) +
   coord_fixed() +
   theme_few() +
-  scale_fill_viridis(expression("Variance (m)")) +
+  scale_fill_viridis(expression("Variance")) +
   scale_color_manual('Snow Fence',
                      values = 'black') +
   scale_x_continuous(name = 'Distance (m)') +
