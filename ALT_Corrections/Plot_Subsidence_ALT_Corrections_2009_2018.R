@@ -149,28 +149,25 @@ Sub_extract <- CiPEHR_extract %>%
 ############################################################################################################
 
 ######## Extract variance values from rasters using plot locations ########
-# need to do this with drypehr as well and figure out error associated with gap filled data...
+# don't do with drypehr because the subsidence modeling doesn't include drypehr.
+# Still could figure out error associated with gap filled data, but it's not used in modeling so it's not strictly necessary.
+se <- list()
 se_extract <- data.frame()
 se_subsidence <- data.frame()
 for (i in 1: length(variance)) {
   plotcoords.temp <- plotcoords %>%
     filter(block == i & exp == 'CiPEHR')
-  se_extract_temp <- raster::extract(variance[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_brick[[i]]), df = TRUE) %>%
-    dplyr::select(var2009 = 2,
-                  var2011 = 3,
-                  var2015 = 4,
-                  var2016 = 5,
-                  var2017 = 6,
-                  var2018 = 7,
+  se[[i]] <- calc(variance[[i]], sqrt)
+  se_extract_temp <- raster::extract(se[[i]], plotcoords.temp, layer = 1, nl = nlayers(se[[i]]), df = TRUE) %>%
+    dplyr::select(se.2009 = 2,
+                  se.2011 = 3,
+                  se.2015 = 4,
+                  se.2016 = 5,
+                  se.2017 = 6,
+                  se.2018 = 7,
                   -ID) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    mutate(se.2009 = sqrt(var2009),
-           se.2011 = sqrt(var2011),
-           se.2015 = sqrt(var2015),
-           se.2016 = sqrt(var2016),
-           se.2017 = sqrt(var2017),
-           se.2018 = sqrt(var2018)) %>%
-    select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation, geometry)
+    select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation)
   se_subsidence_temp <- se_extract_temp %>%
     gather(key = year, value = se, se.2009:se.2018) %>%
     group_by(exp, block, fence, plot, Easting, Northing, Elevation) %>%
@@ -185,14 +182,26 @@ for (i in 1: length(variance)) {
                                             'Soil Warming'))),
            sub.se = ifelse(year == 2009,
                            0,
-                           sqrt(se^2 + first(se)^2)))
+                           sqrt(se^2 + first(se)^2))) %>%
+    ungroup() %>%
+    mutate(block = ifelse(block == 1,
+                          'a',
+                          ifelse(block == 2,
+                                 'b',
+                                 'c'))) %>%
+    select(year, exp, block, fence, plot, treatment, time, se, sub.se, Easting, Northing, Elevation)
   se_extract <- rbind.data.frame(se_extract, se_extract_temp)
   se_subsidence <- rbind.data.frame(se_subsidence, se_subsidence_temp)
   rm(i, plotcoords.temp, se_extract_temp)
 }
 
+
 Sub_extract <- Sub_extract %>%
-  full_join()
+  full_join(se_subsidence, by = c('year', 'exp', 'block', 'fence', 'plot', 'treatment', 'time'))
+
+# writeRaster(se[[1]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/A_std_err.tif')
+# writeRaster(se[[2]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/B_std_err.tif')
+# writeRaster(se[[3]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/C_std_err.tif')
 ############################################################################################################
 
 ######################### Prep ALT data and join with sub data #############################################

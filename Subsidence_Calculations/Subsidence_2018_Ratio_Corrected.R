@@ -186,6 +186,8 @@ filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur L
 variance1 <- list(stack(filenames[1:4]), stack(filenames[7:10]), stack(filenames[13:16])) # stack all but 2017 and 2018 which haven't been clipped
 variance2 <- list(stack(filenames[5:6]), stack(filenames[11:12]), stack(filenames[17:18]))
 blocks <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err', full.names = TRUE, pattern = "\\.tif$")
+se <- list(brick(filenames[1]), brick(filenames[2]), brick(filenames[3]))
 ########################################################################################
 
 ### clip 2017 and 2018 data and join with the rest ####################################
@@ -212,6 +214,19 @@ for (i in 1:length(variance)){ # repeat over each block
   }
   rm(i, k, temp)
 }
+
+se.df <- data.frame() # make an empty dataframe to fill with data from each block and year
+for (i in 1:length(se)){ # repeat over each block
+  for (k in 1:nlayers(se[[i]])){ # repeat over each year within each block
+    temp <- as(se[[i]][[k]], "SpatialPixelsDataFrame") %>% # convert to spatial pixels dataframe
+      as.data.frame() %>% # convert to dataframe
+      rename(se = 1) %>% # rename the subsidence column from whatever name is automatically taken from filename
+      mutate(year = years[k], # add column with year
+             block = c('A', 'B', 'C')[i]) # add column with block
+    se.df <- rbind.data.frame(se.df, temp) # add the data from one block in one year above to the combined dataframe
+  }
+  rm(i, k, temp)
+}
 #######################################################################################
 
 ### normalize to graph all at once ####################################################
@@ -221,6 +236,24 @@ min.coords <- variance.df %>%
             y.min = min(y))
 
 variance.df <- variance.df %>%
+  left_join(min.coords, by = 'block') %>%
+  mutate(long.norm = round(x - x.min), # have to round due to bug in ggplot. Details here: https://stackoverflow.com/questions/18157975/combine-geom-tile-and-facet-grid-facet-wrap-and-remove-space-between-tiles-gg
+         lat.norm = round(y - y.min)) %>%
+  select(-x.min, -y.min)
+
+Fences.norm <- Fences %>%
+  left_join(min.coords, by = 'block') %>%
+  mutate(long.norm = round(long - x.min),
+         lat.norm = round(lat - y.min),
+         dummy = '') %>%
+  select(-x.min, -y.min)
+
+min.coords <- se.df %>%
+  group_by(block) %>%
+  summarize(x.min = min(x),
+            y.min = min(y))
+
+se.df <- se.df %>%
   left_join(min.coords, by = 'block') %>%
   mutate(long.norm = round(x - x.min), # have to round due to bug in ggplot. Details here: https://stackoverflow.com/questions/18157975/combine-geom-tile-and-facet-grid-facet-wrap-and-remove-space-between-tiles-gg
          lat.norm = round(y - y.min)) %>%
@@ -255,6 +288,27 @@ var_map
 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/variance.jpg', plot = var_map, width = 190, height = 115, units = 'mm')
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/variance.pdf', plot = var_map, width = 190, height = 115, units = 'mm')
+
+se_map <- ggplot(se.df, aes(x=long.norm, y=lat.norm, fill=se)) +
+  geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
+  geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
+  facet_grid(block ~ year) +
+  coord_fixed() +
+  theme_few() +
+  scale_fill_viridis(expression("Standard Error (m)")) +
+  scale_color_manual('Snow Fence',
+                     values = 'black') +
+  scale_x_continuous(name = 'Distance (m)') +
+  scale_y_continuous(name = 'Distance (m)') +
+  theme(aspect.ratio = 1,
+        plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 8),
+        strip.text.y = element_text(angle = 0))
+
+se_map
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/sub_se.jpg', plot = se_map, width = 190, height = 115, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/sub_se.pdf', plot = se_map, width = 190, height = 115, units = 'mm')
 
 #######################################################################################
 
