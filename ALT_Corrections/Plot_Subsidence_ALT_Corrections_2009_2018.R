@@ -146,9 +146,12 @@ Sub_extract <- CiPEHR_extract %>%
   dplyr::select(year, exp, block, fence, plot, treatment, subsidence, time)
 
 # write.table(Sub_extract, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.txt', sep = '\t', row.names = FALSE)
+
+# find std error of max frost heave cell (located in block A 2011)
+raster(se[[1]], layer = 2)[raster(subsidenceC[[1]], layer = 2) == cellStats(raster(subsidenceC[[1]], layer = 2), stat = 'max')]
 ############################################################################################################
 
-######## Extract variance values from rasters using plot locations ########
+######## Extract std error values from rasters using plot locations ########
 # don't do with drypehr because the subsidence modeling doesn't include drypehr.
 # Still could figure out error associated with gap filled data, but it's not used in modeling so it's not strictly necessary.
 se <- list()
@@ -167,7 +170,7 @@ for (i in 1: length(variance)) {
                   se.2018 = 7,
                   -ID) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation)
+    dplyr::select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation)
   se_subsidence_temp <- se_extract_temp %>%
     gather(key = year, value = se, se.2009:se.2018) %>%
     group_by(exp, block, fence, plot, Easting, Northing, Elevation) %>%
@@ -189,7 +192,7 @@ for (i in 1: length(variance)) {
                           ifelse(block == 2,
                                  'b',
                                  'c'))) %>%
-    select(year, exp, block, fence, plot, treatment, time, se, sub.se, Easting, Northing, Elevation)
+    dplyr::select(year, exp, block, fence, plot, treatment, time, se, sub.se, Easting, Northing, Elevation)
   se_extract <- rbind.data.frame(se_extract, se_extract_temp)
   se_subsidence <- rbind.data.frame(se_subsidence, se_subsidence_temp)
   rm(i, plotcoords.temp, se_extract_temp)
