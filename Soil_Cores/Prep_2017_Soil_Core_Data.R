@@ -33,8 +33,8 @@ ash_17_v2 <- ash_17 %>%
          depth1 = as.numeric(depth1)) %>%
   select(-c(5:9))
 
-# this layer got split into two for some reason and needs to be averaged into one layer
-temp <- ash_17_v2 %>%
+# this layer got split into two for some reason and needs to be averaged into one layer (can't happen with the rest of the uneven layers, because this needs to be joined with soil data based on sample numbers)
+split_layers <- ash_17_v2 %>%
   filter(`well#` == '4-2.17' & depth == '25-32' | `well#` == '4-2.17' & depth == '32-35') %>%
   group_by(`well#`) %>%
   summarise(new.ash = sum(ash*(depth1-depth0)/10)) %>%
@@ -46,13 +46,32 @@ temp <- ash_17_v2 %>%
 cn_17_v2 <- cn_17_1 %>%
   rbind.data.frame(cn_17_2) # add other files here
 
+# need to figure out the order in which to correct layers and join in order to account for samples split in some data sets but not others
+uneven_layers <- soil_17_v2 %>%
+  filter(!(depth0 %in% c(0, 5, 15, 25, 35, 45, 55, 65, 75, 85, 95)) | 
+           !(depth1 %in% c(5, 15, 25, 35, 45, 55, 65, 75, 85, 95, 100)))
+
+depth0_values <- c(0, 5, 15, 25, 35, 45, 55, 65, 75, 85, 95)
+depth1_values <- c(5, 15, 25, 35, 45, 55, 65, 75, 85, 95, 100)
+
+for (i in 1:nrows(uneven_layers)) {
+  if (uneven_layers$depth0[i] %in% depth0_values & 
+      uneven_layers$depth1[i] > depth1_values[which(uneven_layers$depth0[i] %in% depth0_values)]) { # any rows which are bigger than the desired quantity and will not need to be averaged
+    uneven_layers$depth1[i] <- depth1_values[which(uneven_layers$depth0[i] %in% depth0_values)]
+    uneven_layers$
+  } else if (uneven_layers$depth1[i] %in% depth1_values & 
+             uneven_layers$depth0[i] < depth0_values[which(uneven_layers$depth1[i] %in% depth1_values)])
+}
+
+
+
 # join soil, ash, cn data for 2017
 soil_17_v2 <- soil_17 %>%
   select(-c(5, 9:11)) %>%
   full_join(filter(ash_17_v2, !(`well#` == '4-2.17' & depth == '25-32' | 
                                   `well#` == '4-2.17' & depth == '32-35')), 
             by = c('well#', 'depth')) %>%
-  full_join(temp, by = c('well#', 'depth')) %>%
+  full_join(split_layers, by = c('well#', 'depth')) %>%
   mutate(depth0 = ifelse(!is.na(depth0),
                          depth0,
                          new.depth0),
@@ -86,14 +105,61 @@ soil_17_v2 <- soil_17 %>%
          cu.C.stock = cumsum(C.stock),
          cu.N.stock = cumsum(N.stock)) %>%
   ungroup() %>%
-  select(year, block, fence = Fence, treatment, depth.cat = depth, depth0, depth1, moisture = Moisture, 
+  select(year, block, fence = Fence, plot, treatment, depth.cat = depth, depth0, depth1, moisture = Moisture, 
          bulk.density = `Bulk density`, ash, C = `%C`, N = `%N`, CtoN, delta13C = d13C, delta15N = d15N, 
          soil.stock, ash.stock, C.stock , N.stock, cu.soil.stock, cu.ash.stock, cu.C.stock, cu.N.stock)
 
+
+
 rm(temp)
+
+soil_17_template <- expand.grid(fence = seq(1, 6, 1),
+                                plot = seq(1, 8, 1),
+                                depth.cat = c('0-5', '5-15', '15-25', '25-35', '35-45', '45-55', '55-65', '65-75', '75-85', '85-95', '95-100')) %>%
+  separate(depth.cat, into = c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
+  mutate(year = 2017,
+         block = ifelse(fence <= 2,
+                        1,
+                        ifelse(fence >= 5,
+                               3,
+                               2)),
+         depth.cat = as.character(depth.cat),
+         depth0 = as.numeric(depth0),
+         depth1 = as.numeric(depth1),
+         treatment = ifelse(plot <= 4,
+                            'c',
+                            'w'),
+         moisture = '',
+         bulk.density = '',
+         ash = '') %>%
+  select(year, block, fence, plot, treatment, depth.cat, depth0, depth1, moisture, bulk.density, ash) %>%
+  arrange(block, fence, plot, depth0)
+
+for (i in 1:nrow(soil_17_template)) {
+  test <- c()
+  for (k in 1:nrow(soil_17_v2)) {
+    test[k] <- all(soil_17_v2[k, 1:8] == soil_17_template[i, 1:8]) | 
+      all(soil_17_v2[k, 1:5] == soil_17_template[i, 1:5]) & 
+      soil_17_v2[k, 7] <= soil_17_template[i, 7] & 
+      soil_17_v2[k, 8] >= soil_17_template[i, 8] # check if there is a row which completely matches the year, block, fence, plot, treatment, and depth requirements
+  }
+  if (any(test == TRUE)) {
+    idx <- which(test == TRUE)
+    soil_17_template$bulk.density[i] <- soil_17_v2$bulk.density[idx] # if a row matches, fill in the empty spot in the new data frame with data from the old data frame
+  } else {
+    test <- c()
+    for (k in 1:nrow(soil_17_v2)) {
+      test[k] <- all(soil_17_v2[k, 1:8] == soil_17_template[i, 1:8]) # check if there is a row which completely matches the year, block, fence, plot, treatment, and depth requirements
+    }
+  }
+}
 
 # join 09_13 and 17 data
 soil_09_17 <- soil_09_13 %>%
+  mutate(plot = '') %>%
+  select(year, block, fence, plot, treatment, depth.cat, depth0, depth1, moisture, bulk.density, ash, C, N, CtoN, delta13C, 
+         delta15N, soil.stock, ash.stock, C.stock , N.stock, cu.soil.stock, cu.ash.stock, cu.C.stock, cu.N.stock) %>%
   rbind.data.frame(soil_17_v2)
-  
+
+# write.csv(soil_09_17, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv', row.names = FALSE) 
 ################################################################################################################

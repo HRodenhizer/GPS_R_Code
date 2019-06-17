@@ -23,7 +23,7 @@ soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/S
   separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
   mutate(depth0 = as.numeric(depth0),
          depth1 = as.numeric(depth1))
-# soil_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 Soils_processing data sheet_3_8_18.xlsx')
+soil_09_17 <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv')
 # read in water well location data and subsidence data for 2013
 water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
   filter(str_detect(Name, pattern = '^ww.*5$')) %>%
@@ -182,6 +182,106 @@ alt <- ALTsub %>%
 
 # join alt with soil_09_13_ash
 soil_ash_alt <- soil_09_13_ash %>%
+  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
+  filter(-mean.ALT > depth0 & -mean.ALT < depth1 | fence == 3 & treatment == 'c' & year == 2009) %>%
+  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
+                               ash.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
+                               ash.mass + (-mean.ALT-depth1)*ash.mass/height))
+
+# calculate subsidence, change in bd, and change in moisture in each layer
+soil_09_ash <- soil_09_13_ash %>%
+  filter(year == 2009) %>%
+  select(block, fence, treatment, ash.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
+
+soil_core_sub_ash <- soil_09_13_ash %>%
+  filter(year == 2013) %>%
+  select(block, fence, treatment, ash.mass, depth0.2013 = depth0, depth1.2013 = depth1, height.2013 = height, bd.2013 = bd, moisture.2013 = moisture) %>%
+  full_join(soil_09_ash, by = c('block', 'fence', 'treatment', 'ash.mass')) %>%
+  arrange(block, fence, treatment, ash.mass) %>%
+  mutate(subsidence = height.2013 - height.2009,
+         delta.bd = bd.2013 - bd.2009,
+         delta.moisture = moisture.2013 - moisture.2009,
+         type = 'ash') %>%
+  select(type, block, fence, treatment, mass = ash.mass, subsidence, delta.bd, delta.moisture)
+####################################################################################################################################
+
+### calculate the height of cores with the same amount of ash mass in 2009, 2013, and 2017 #########################################
+ash_mass_09_17 <- soil_09_17 %>%
+  select(1:11) %>% # get rid of everything else, since Cesar used decigrams for his calculations, and I would rather stick to grams
+  filter(year == 2009 | year == 2013 | year == 2017) %>%
+  filter(moisture != is.na(moisture)) %>%
+  group_by(year, block, fence, treatment, depth0) %>%
+  summarise(moisture = mean(moisture, na.rm = TRUE),
+            bulk.density = mean(bulk.density, na.rm = TRUE),
+            ash = mean(ash, na.rm = TRUE)) %>%
+  group_by(year, block, fence, treatment) %>%
+  mutate(soil.mass = bulk.density*(depth1 - depth0), # bulk.density(g/cm^3), depths(cm), soil mass(g/cm^2)
+         soil.mass.tot = cumsum(soil.mass),
+         ash.mass = ash*bulk.density*(depth1 - depth0)/1000, # ash(g/kg), bd(g/cm^3), depths(cm), ash mass(g/cm^2)
+         ash.mass.tot = cumsum(ash.mass))
+
+# set 'goal' ash amounts by 5 and then add in the max shared ash amount as an additional goal
+# (to be able to specifically compare the subsidence for the entire shared core depth without extrapolating to the next 5 grams of ash)
+goal.max <- ash_mass_09_17 %>%
+  group_by(year, block, fence, treatment) %>%
+  filter(ash.mass.tot == max(ash.mass.tot, na.rm = TRUE)) %>%
+  group_by(block, fence, treatment) %>%
+  filter(ash.mass.tot == min(ash.mass.tot, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(block, fence, treatment) %>%
+  select(year, block, fence, plot, treatment, ash.mass.tot)
+
+goal <- c(seq(0, 60, 5), goal.max$ash.mass.tot)
+
+# extract depths to chosen uniform ash mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 + the total shared ash mass)
+depth <- ash_mass_09_17 %>%
+  do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$ash.mass, goal)) })
+
+# average bulk density for each of the previously calculated depths
+bd <- ash_mass_09_17 %>%
+  do({ data.frame( bd = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$bulk.density, goal))})
+
+# average moisture for each of the previously calculated depths
+moisture <- ash_mass_09_17 %>%
+  do({ data.frame( moisture = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$moisture, goal))})
+
+# join depth, bd, and moisture dataframes into one
+soil_09_17_ash <- depth %>%
+  cbind.data.frame(bd = bd$bd, moisture = moisture$moisture) %>%
+  mutate(ash.mass = rep(goal, 24),
+         depth1 = ifelse(ash.mass == 0,
+                         0,
+                         depth1),
+         group.id = group_indices(., block, fence, treatment),
+         goal.id = rep(c(rep(0, 13), seq(1, 12)), 24)) %>%
+  filter(!is.na(depth1)) %>%
+  filter(ash.mass == round(ash.mass, 0) | group.id == goal.id) %>%
+  select(year, block, fence, treatment, ash.mass, depth1, bd, moisture) %>%
+  arrange(year, block, fence, treatment, ash.mass)
+
+height <- soil_09_17_ash$depth1 %>%
+  diff()
+height <- height[height > 0]
+
+soil_09_17_ash <- soil_09_17_ash %>%
+  filter(!is.na(bd)) %>%
+  cbind(height) %>%
+  mutate(depth0 = depth1-height) %>%
+  select(year, block, fence, treatment, ash.mass, depth0, depth1, height, bd, moisture)
+
+# prep alt data for joining
+alt <- ALTsub %>%
+  select(year, fence, plot, treatment, ALT) %>%
+  filter(year == 2009 | year == 2013) %>%
+  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+                            'c',
+                            'w')) %>%
+  group_by(year, fence, treatment) %>%
+  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
+
+# join alt with soil_09_17_ash
+soil_ash_alt <- soil_09_17_ash %>%
   left_join(alt, by = c('year', 'fence', 'treatment')) %>%
   filter(-mean.ALT > depth0 & -mean.ALT < depth1 | fence == 3 & treatment == 'c' & year == 2009) %>%
   mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
