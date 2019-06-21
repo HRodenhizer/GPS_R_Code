@@ -67,9 +67,12 @@ avg_ash_4_2_17 <- ash_17_v2 %>%
 # join soil, ash, cn data for 2017
 soil_17_v2 <- soil_17 %>%
   select(-c(5, 9:11)) %>%
+  separate(depth, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
+  mutate(depth0 = as.numeric(depth0),
+         depth1 = as.numeric(depth1)) %>%
   full_join(filter(ash_17_v2, !(`well#` == '4-2.17' & depth == '25-32' | 
                                   `well#` == '4-2.17' & depth == '32-35')), 
-            by = c('well#', 'depth')) %>%
+            by = c('well#', 'depth', 'depth0', 'depth1')) %>%
   full_join(avg_ash_4_2_17, by = c('well#', 'depth')) %>%
   left_join(cn_17, by = 'ID') %>% # change to join with filter(cn_17_v2, !(ID == S126 | ID == S214))
   # full_join(avg_cn_4_2_17, by = c('ID', 'depth')) %>%
@@ -80,6 +83,7 @@ soil_17_v2 <- soil_17 %>%
                          depth1,
                          new.depth1),
          stock = `Bulk density`*(depth1-depth0),
+         moisture = Moisture*1000, # to match Cesar's units of g/kg
          ash = ifelse(!is.na(ash),
                       ash,
                       new.ash)) %>% # , (remove %>% and add in comma when all data are incorporated)
@@ -109,7 +113,7 @@ soil_17_v2 <- soil_17 %>%
                             'c',
                             'w')) %>%
   ungroup() %>%
-  select(year, block, fence = Fence, plot, treatment, depth.cat = depth, depth0, depth1, stock, moisture = Moisture, 
+  select(year, block, fence = Fence, plot, treatment, depth.cat = depth, depth0, depth1, stock, moisture, 
          bulk.density = `Bulk density`, ash, C = `%C`, N = `%N`, delta13C = d13C, delta15N = d15N)
 
 # separate layers which were split into two (based on organic vs. mineral soil) and average
@@ -125,105 +129,193 @@ split_layers <- soil_17_v2 %>%
   filter(!(fence == 3 & plot == 6 | fence == 6 & plot == 1)) %>%
   summarise(new.depth0 = first(depth0),
             new.depth1 = last(depth1),
+            stock = sum(stock*(depth1 - depth0))/(last(depth1) - first(depth0)),
             moisture = sum(moisture*(stock))/(sum(stock)),
             bulk.density = sum(bulk.density*(stock))/(sum(stock)),
             ash = sum(ash*(stock))/(sum(stock)),
             C = sum(C*(stock))/(sum(stock)),
             N = sum(N*(stock))/(sum(stock)),
             delta13C = sum(delta13C*(stock))/(sum(stock)),
-            delta15N = sum(delta15N*(stock))/(sum(stock)))
+            delta15N = sum(delta15N*(stock))/(sum(stock))) %>%
+  mutate(depth.cat = paste(new.depth0, new.depth1, sep = '-')) %>%
+  select(year, block, fence, plot, treatment, depth.cat, depth0 = new.depth0, depth1 = new.depth1, stock, moisture, bulk.density, 
+         ash, C, N, delta13C, delta15N)
+
 # separate layers which have depths slightly offset from the desired depths
 uneven_layers <- soil_17_v2 %>%
   filter(!(depth0 %in% depth0_values) | 
            !(depth1 %in% depth1_values)) %>%
   filter(depth1 > 15 | fence == 3 & plot == 6 & depth0 == 6.5 | fence == 4 & plot == 8 | fence == 5 & plot == 6 | fence == 6 & plot == 1 | fence == 6 & plot == 8) %>%
-  mutate(new.depth.cat = '',
-         new.depth0 = '',
-         new.depth1 = '',
-         new.moisture = '',
-         new.bulk.density = '',
-         new.ash = '',
-         new.C = '',
-         new.N = '',
-         new.delta13C = '',
-         new.delta15N = '')
+  mutate(new.depth.cat = NA,
+         new.depth0 = NA,
+         new.depth1 = NA,
+         new.stock = NA,
+         new.moisture = NA,
+         new.bulk.density = NA,
+         new.ash = NA,
+         new.C = NA,
+         new.N = NA,
+         new.delta13C = NA,
+         new.delta15N = NA)
 
 for (i in 1:nrow(uneven_layers)) {
   
-  idx <- which.min(abs(depth0_values-current_depth0))
+  current_fence <- uneven_layers$fence[i]
+  current_plot <- uneven_layers$plot[i]
   current_depth0 <- uneven_layers$depth0[i]
   current_depth1 <- uneven_layers$depth1[i]
+  idx <- which.min(abs(depth0_values-current_depth0))
   new_depth0 <- depth0_values[idx]
   new_depth1 <- depth1_values[idx]
   
-  if (i == nrow(uneven_layers)) {
+  if (i == 1 | i == nrow(uneven_layers)) {
     
+    uneven_layers$new.depth0[i] <- new_depth0
     uneven_layers$new.depth1[i] <- new_depth1
+    uneven_layers$new.depth.cat[i] <- paste(new_depth0, new_depth1, sep = '-')
     
-  } else if (current_depth0 %in% depth0_values) { # any rows in which depth0 is one of the normalized depths
+  } else {
     
-    if (current_depth1 > depth1_values[which(depth0_values == current_depth0)]) { # any rows in which depth1 is bigger than the normalized depth and will not need to be averaged
+    uneven_layers$new.depth0[i] <- new_depth0
+    uneven_layers$new.depth1[i] <- new_depth1
+    uneven_layers$new.depth.cat[i] <- paste(new_depth0, new_depth1, sep = '-')
+    
+    if (current_depth0 > depth0_values[idx] &
+        current_depth1 < depth1_values[idx] &
+        current_fence == uneven_layers$fence[i-1] &
+        current_plot == uneven_layers$plot[i-1] &
+        current_fence == uneven_layers$fence[i+1] &
+        current_plot == uneven_layers$plot[i+1]) { # any rows in which depth0 is greater than and depth1 is less than the normalized depth and the rows on either side are of the same core
       
-      new_depth1 <- depth1_values[which(depth0_values == current_depth0)]
-      uneven_layers$new.depth.cat[i] <- paste(current_depth0, new_depth1, sep = '-')
-      uneven_layers$new.depth1[i] <- new_depth1
+      # uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i-1]*uneven_layers$stock[i-1]*(current_depth0-new_depth0) + 
+      #   uneven_layers$moisture[i]*uneven_layers$stock[i]*(current_depth1 - current_depth0) +
+      #   uneven_layers$moisture[i+1]*uneven_layers$stock[i+1]*(new_depth1-current_depth1))/
+      #   (uneven_layers$stock[i-1]*(current_depth0-new_depth0) + uneven_layers$stock[i]*(current_depth1 - current_depth0) + uneven_layers$stock[i+1]*(new_depth1-current_depth1))
+      print('The case where values need to be averaged with both the layer above and below the current layer is not yet supported.')
       
-    } else if (current_depth1 < depth1_values[which(depth0_values == current_depth0)] &
-               uneven_layers$fence[i] == uneven_layers$fence[i+1] &
-               uneven_layers$plot[i] == uneven_layers$plot[i+1]) { # any rows in which depth1 is smaller than the normalized depth and the next row is in the same core
+    } else if (current_depth0 > depth0_values[idx] &
+               current_fence == uneven_layers$fence[i-1] &
+               current_plot == uneven_layers$plot[i-1]) {
       
-      new_depth1 <- depth1_values[which(depth0_values == current_depth0)]
-      uneven_layers$new.depth.cat[i] <- paste(current_depth0, new_depth1, sep = '-')
-      uneven_layers$new.depth1[i] <- new_depth1
-      uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i]*(current_depth1 - current_depth0) + uneven_layers$moisture[i+1]*(new_depth1 - current_depth1))/(new_depth1 - current_depth0)
+      # stock
+      uneven_layers$new.stock[i] <- (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (new_depth1 - new_depth0)
       
-    } else { # any layers in which depth1 is smaller than the normalized quantity and the next row is a different core
+      # moisture
+      uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$moisture[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
       
-      uneven_layers$new.depth1[i] <- depth1_values[which(depth0_values == current_depth0)]
+      # bulk density
+      uneven_layers$new.bulk.density[i] <- (uneven_layers$bulk.density[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$bulk.density[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+      # ash
+      uneven_layers$new.ash[i] <- (uneven_layers$ash[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$ash[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+      # C
+      uneven_layers$new.C[i] <- (uneven_layers$C[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$C[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+      # N
+      uneven_layers$new.N[i] <- (uneven_layers$N[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$N[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+      # delta13C
+      uneven_layers$new.delta13C[i] <- (uneven_layers$delta13C[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$delta13C[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+      # delta15N
+      uneven_layers$new.delta15N[i] <- (uneven_layers$delta15N[i-1]*uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
+                                          uneven_layers$delta15N[i]*uneven_layers$stock[i]*(new_depth1 - current_depth0))/
+        (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) + uneven_layers$stock[i]*(new_depth1 - current_depth0))
+      
+    } else if (current_depth1 < depth1_values[idx] &
+               current_fence == uneven_layers$fence[i+1] &
+               current_plot == uneven_layers$plot[i+1]) {
+      
+      # stock
+      uneven_layers$new.stock[i] <- (uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                       uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (new_depth1 - new_depth0)
+      
+      # moisture
+      uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$moisture[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # bulk.density
+      uneven_layers$new.bulk.density[i] <- (uneven_layers$bulk.density[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$bulk.density[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # ash
+      uneven_layers$new.ash[i] <- (uneven_layers$ash[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$ash[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # C
+      uneven_layers$new.C[i] <- (uneven_layers$C[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$C[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # N
+      uneven_layers$new.N[i] <- (uneven_layers$N[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$N[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # delta13C
+      uneven_layers$new.delta13C[i] <- (uneven_layers$delta13C[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$delta13C[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
+      
+      # delta15N
+      uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i]*uneven_layers$stock[i]*(current_depth1 - new_depth0) +
+                                          uneven_layers$moisture[i+1]*uneven_layers$stock[i+1]*(new_depth1 - current_depth1))/
+        (uneven_layers$stock[i]*(current_depth1 - new_depth0) + uneven_layers$stock[i+1]*(new_depth1 - current_depth1))
       
     }
-  } else if (current_depth1 %in% depth1_values) { # any rows in which depth1 is one of the normalized depths
     
-    if (current_depth0 < depth0_values[which(depth1_values == current_depth1)]) { # any rows in which depth0 is smaller than the normalized depth and will not need to be averaged
-      
-      new_depth0 <- depth0_values[which(depth1_values == current_depth1)]
-      uneven_layers$new.depth.cat[i] <- paste(new_depth0, current_depth1, sep = '-')
-      uneven_layers$new.depth0[i] <- new_depth0
-      
-    } else if (current_depth0 > depth0_values[which(depth1_values == current_depth1)] &
-               current_depth0 == uneven_layers$depth0[i-1]) {
-      
-      new_depth0 <- depth0_values[which(depth1_values == current_depth1)]
-      uneven_layers$new.depth.cat[i] <- paste(current_depth1, new_depth0, sep = '-')
-      uneven_layers$new.depth0[i] <- new_depth0
-      uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i]*(current_depth1 - current_depth0) + uneven_layers$moisture[i-1]*(current_depth0 - new_depth0))/(current_depth1 - new_depth0)
-    }
-    
-  } else if (!(current_depth0 %in% depth0_values & current_depth1 %in% depth1_values)) { # any rows in which neither depth is equal to one of the normalized depths
-    idx <- which.min(abs(depth0_values-current_depth0))
-    
-    if (current_depth0 < depth0_values[idx]) { # any rows in which depth0 is smaller than the closest normalized value
-      
-      if (current_depth1 < depth1_values[idx]) { # any rows in which depth1 is smaller than the closest normalized value
-        
-      } else if (current_depth1 > depth1_values[idx]) { # any rows in which depth1 is larger than the closest normalized value
-        
-      }
-    }
   }
+  
 }
 
-# calculate new columns
-# ,
-# CtoN = `%C`/`%N`,
-# soil.stock = `Bulk density`*(depth1 - depth0)*10, # g/cm^3 * cm * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
-# ash.stock = ash*`Bulk density`*(depth1 - depth0)/100, # g ash/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
-# C.stock = `%C`*`Bulk density`*(depth1 - depth0)/100, # g C/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2,
-# N.stock = `%N`*`Bulk density`*(depth1 - depth0)/100, # g N/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2,
-# cu.soil.stock = cumsum(soil.stock),
-# cu.ash.stock = cumsum(ash.stock),
-# cu.C.stock = cumsum(C.stock),
-# cu.N.stock = cumsum(N.stock)
+# tidy the normalized data
+uneven_layers_v2 <- uneven_layers %>%
+  mutate(new.stock = ifelse(is.na(new.stock),
+                            stock,
+                            new.stock),
+         new.moisture = ifelse(is.na(new.moisture),
+                               moisture,
+                               new.moisture),
+         new.bulk.density = ifelse(is.na(new.bulk.density),
+                               bulk.density,
+                               new.bulk.density),
+         new.ash = ifelse(is.na(new.ash),
+                               ash,
+                          new.ash),
+         new.C = ifelse(is.na(new.C),
+                        C,
+                        new.C),
+         new.N = ifelse(is.na(new.N),
+                        N,
+                        new.N),
+         new.delta13C = ifelse(is.na(new.delta13C),
+                               delta13C,
+                               new.delta13C),
+         new.delta15N = ifelse(is.na(new.delta15N),
+                               delta15N,
+                               new.delta15N)) %>%
+  select(year, block, fence, plot, treatment, depth.cat = new.depth.cat, depth0 = new.depth0, depth1 = new.depth1, 
+         stock = new.stock, moisture = new.moisture, bulk.density = new.bulk.density, ash = new.ash, C = new.C, 
+         N = new.N, delta13C = new.delta13C, delta15N = new.delta15N)
 
 soil_17_template <- expand.grid(fence = seq(1, 6, 1),
                                 plot = seq(1, 8, 1),
@@ -240,38 +332,34 @@ soil_17_template <- expand.grid(fence = seq(1, 6, 1),
          depth1 = as.numeric(depth1),
          treatment = ifelse(plot <= 4,
                             'c',
-                            'w'),
-         moisture = '',
-         bulk.density = '',
-         ash = '') %>%
-  select(year, block, fence, plot, treatment, depth.cat, depth0, depth1, moisture, bulk.density, ash) %>%
+                            'w')) %>%
+  select(year, block, fence, plot, treatment, depth.cat, depth0, depth1) %>%
   arrange(block, fence, plot, depth0)
 
-for (i in 1:nrow(soil_17_template)) {
-  test <- c()
-  for (k in 1:nrow(soil_17_v2)) {
-    test[k] <- all(soil_17_v2[k, 1:8] == soil_17_template[i, 1:8]) | 
-      all(soil_17_v2[k, 1:5] == soil_17_template[i, 1:5]) & 
-      soil_17_v2[k, 7] <= soil_17_template[i, 7] & 
-      soil_17_v2[k, 8] >= soil_17_template[i, 8] # check if there is a row which completely matches the year, block, fence, plot, treatment, and depth requirements
-  }
-  if (any(test == TRUE)) {
-    idx <- which(test == TRUE)
-    soil_17_template$bulk.density[i] <- soil_17_v2$bulk.density[idx] # if a row matches, fill in the empty spot in the new data frame with data from the old data frame
-  } else {
-    test <- c()
-    for (k in 1:nrow(soil_17_v2)) {
-      test[k] <- all(soil_17_v2[k, 1:8] == soil_17_template[i, 1:8]) # check if there is a row which completely matches the year, block, fence, plot, treatment, and depth requirements
-    }
-  }
-}
+# join soil_17_v2 with split layers and uneven layers and then insert into the template
+soil_17_final <- soil_17_v2 %>%
+  rbind.data.frame(split_layers, uneven_layers_v2) %>%
+  right_join(soil_17_template, by = c('year', 'block', 'fence', 'plot', 'treatment', 'depth.cat', 'depth0', 'depth1')) %>%
+  group_by(year, block, fence, plot, treatment) %>%
+  filter(!all(is.na(stock))) %>%
+  select(-stock) %>%
+  mutate(CtoN = C/N,
+         soil.stock = bulk.density*(depth1 - depth0)*10, # g/cm^3 * cm * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
+         ash.stock = ash*bulk.density*(depth1 - depth0)/100, # g ash/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
+         C.stock = C*bulk.density*(depth1 - depth0)/100, # g C/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2,
+         N.stock = N*bulk.density*(depth1 - depth0)/100, # g N/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2,
+         cu.soil.stock = cumsum(soil.stock),
+         cu.ash.stock = cumsum(ash.stock),
+         cu.C.stock = cumsum(C.stock),
+         cu.N.stock = cumsum(N.stock))
 
 # join 09_13 and 17 data
 soil_09_17 <- soil_09_13 %>%
   mutate(plot = '') %>%
   select(year, block, fence, plot, treatment, depth.cat, depth0, depth1, moisture, bulk.density, ash, C, N, CtoN, delta13C, 
          delta15N, soil.stock, ash.stock, C.stock , N.stock, cu.soil.stock, cu.ash.stock, cu.C.stock, cu.N.stock) %>%
-  rbind.data.frame(soil_17_v2)
+  rbind.data.frame(soil_17_final)
 
+# remember to save to server when final copy is ready
 # write.csv(soil_09_17, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv', row.names = FALSE) 
 ################################################################################################################
