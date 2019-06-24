@@ -18,11 +18,6 @@ library(tidyverse)
 ####################################################################################################################################
 
 ### load data ######################################################################################################################
-soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009-2013 CiPEHR Processed SOIL DATA_César.xlsx",
-                         sheet = 1) %>%
-  separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
-  mutate(depth0 = as.numeric(depth0),
-         depth1 = as.numeric(depth1))
 soil_09_17 <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv')
 # read in water well location data and subsidence data for 2013
 water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
@@ -46,6 +41,8 @@ filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur L
 Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 # Load ALT
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
+
+rm(filenames)
 ####################################################################################################################################
 
 ### functions necessary for following code #########################################################################################
@@ -114,106 +111,45 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
 }, 'goal')
 ####################################################################################################################################
 
-### calculate the height of cores with the same amount of ash mass in 2009 vs. 2013 ################################################
-ash_mass_09_13 <- soil_09_13 %>%
-  select(1:10) %>% # get rid of everything else, since Cesar used different units for his calculations
-  filter(year == 2009 | year == 2013) %>%
-  filter(moisture != is.na(moisture)) %>%
-  group_by(year, block, fence, treatment) %>%
-  mutate(soil.mass = bulk.density*(depth1 - depth0), # bulk.density(g/cm^3), depths(cm), soil mass(g/cm^2)
-         soil.mass.tot = cumsum(soil.mass),
-         ash.mass = ash*bulk.density*(depth1 - depth0)/1000, # ash(g/kg), bd(g/cm^3), depths(cm), ash mass(g/cm^2)
-         ash.mass.tot = cumsum(ash.mass))
+### calculate the height of cores with the same ('goal') amounts of ash mass in all years ##########################################
+# first some summaries of the data just to see what's going on
+avg <- soil_09_17 %>%
+  summarise(mean.moisture = mean(moisture, na.rm = TRUE),
+            mean.bulk.density = mean(bulk.density, na.rm = TRUE),
+            mean.ash = mean(ash, na.rm = TRUE))
 
-# set 'goal' ash amounts by 5 and then add in the max shared ash amount as an additional goal
-# (to be able to specifically compare the subsidence for the entire shared core depth without extrapolating to the next 5 grams of ash)
-goal.max <- ash_mass_09_13 %>%
-  group_by(year, block, fence, treatment) %>%
-  filter(ash.mass.tot == max(ash.mass.tot, na.rm = TRUE)) %>%
-  group_by(block, fence, treatment) %>%
-  filter(ash.mass.tot == min(ash.mass.tot, na.rm = TRUE)) %>%
-  ungroup() %>%
-  arrange(block, fence, treatment) %>%
-  select(year, block, fence, treatment, ash.mass.tot)
+year_avg <- soil_09_17 %>%
+  mutate(layer.type = ifelse(depth1 <= 35,
+                             'surface',
+                             ifelse(depth1 <= 65,
+                                    'mid',
+                                    'deep'))) %>%
+  group_by(year, layer.type) %>%
+  summarise(mean.moisture = mean(moisture, na.rm = TRUE),
+            mean.bulk.density = mean(bulk.density, na.rm = TRUE),
+            mean.ash = mean(ash, na.rm = TRUE))
 
-goal <- c(seq(0, 60, 5), goal.max$ash.mass.tot)
+ggplot(year_avg, aes(x = year)) +
+  geom_line(aes(y = mean.moisture), color = 'blue') +
+  geom_line(aes(y = mean.bulk.density*1000), color = 'brown') +
+  geom_line(aes(y = mean.ash), color = 'grey') +
+  facet_grid(. ~ layer.type)
 
-# extract depths to chosen uniform ash mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 + the total shared ash mass)
-depth <- ash_mass_09_13 %>%
-  do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$ash.mass, goal)) })
+year_depth_avg <- soil_09_17 %>%
+  group_by(year, treatment, depth.cat) %>%
+  summarise(mean.moisture = mean(moisture, na.rm = TRUE),
+            mean.bulk.density = mean(bulk.density, na.rm = TRUE),
+            mean.ash = mean(ash, na.rm = TRUE)) %>%
+  mutate(depth.cat = factor(depth.cat, levels = c('0-5', '5-15', '15-25', '25-35', '35-45', '45-55', '55-65', '65-75', '75-85', '85-95', '95-100')))
 
-# average bulk density for each of the previously calculated depths
-bd <- ash_mass_09_13 %>%
-  do({ data.frame( bd = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$bulk.density, goal))})
+ggplot(year_depth_avg, aes(x = year, y = mean.moisture, color = depth.cat, group = depth.cat)) +
+  geom_line() +
+  facet_grid(. ~ treatment)
 
-# average moisture for each of the previously calculated depths
-moisture <- ash_mass_09_13 %>%
-  do({ data.frame( moisture = avg.soil.prop(.$depth0, .$depth1, .$ash.mass, .$moisture, goal))})
 
-# join depth, bd, and moisture dataframes into one
-soil_09_13_ash <- depth %>%
-  cbind.data.frame(bd = bd$bd, moisture = moisture$moisture) %>%
-  mutate(ash.mass = rep(goal, 24),
-         depth1 = ifelse(ash.mass == 0,
-                         0,
-                         depth1),
-         group.id = group_indices(., block, fence, treatment),
-         goal.id = rep(c(rep(0, 13), seq(1, 12)), 24)) %>%
-  filter(!is.na(depth1)) %>%
-  filter(ash.mass == round(ash.mass, 0) | group.id == goal.id) %>%
-  select(year, block, fence, treatment, ash.mass, depth1, bd, moisture) %>%
-  arrange(year, block, fence, treatment, ash.mass)
-
-height <- soil_09_13_ash$depth1 %>%
-  diff()
-height <- height[height > 0]
-
-soil_09_13_ash <- soil_09_13_ash %>%
-  filter(!is.na(bd)) %>%
-  cbind(height) %>%
-  mutate(depth0 = depth1-height) %>%
-  select(year, block, fence, treatment, ash.mass, depth0, depth1, height, bd, moisture)
-
-# prep alt data for joining
-alt <- ALTsub %>%
-  select(year, fence, plot, treatment, ALT) %>%
-  filter(year == 2009 | year == 2013) %>%
-  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
-                            'c',
-                            'w')) %>%
-  group_by(year, fence, treatment) %>%
-  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
-            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
-
-# join alt with soil_09_13_ash
-soil_ash_alt <- soil_09_13_ash %>%
-  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
-  filter(-mean.ALT > depth0 & -mean.ALT < depth1 | fence == 3 & treatment == 'c' & year == 2009) %>%
-  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
-                               ash.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
-                               ash.mass + (-mean.ALT-depth1)*ash.mass/height))
-
-# calculate subsidence, change in bd, and change in moisture in each layer
-soil_09_ash <- soil_09_13_ash %>%
-  filter(year == 2009) %>%
-  select(block, fence, treatment, ash.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
-
-soil_core_sub_ash <- soil_09_13_ash %>%
-  filter(year == 2013) %>%
-  select(block, fence, treatment, ash.mass, depth0.2013 = depth0, depth1.2013 = depth1, height.2013 = height, bd.2013 = bd, moisture.2013 = moisture) %>%
-  full_join(soil_09_ash, by = c('block', 'fence', 'treatment', 'ash.mass')) %>%
-  arrange(block, fence, treatment, ash.mass) %>%
-  mutate(subsidence = height.2013 - height.2009,
-         delta.bd = bd.2013 - bd.2009,
-         delta.moisture = moisture.2013 - moisture.2009,
-         type = 'ash') %>%
-  select(type, block, fence, treatment, mass = ash.mass, subsidence, delta.bd, delta.moisture)
-####################################################################################################################################
-
-### calculate the height of cores with the same amount of ash mass in 2009, 2013, and 2017 #########################################
+# calculate soil and ash stock in g/cm^2
 ash_mass_09_17 <- soil_09_17 %>%
   select(1:11) %>% # get rid of everything else, since Cesar used decigrams for his calculations, and I would rather stick to grams
-  filter(year == 2009 | year == 2013 | year == 2017) %>%
   filter(!is.na(moisture)) %>%
   group_by(year, block, fence, treatment, depth0, depth1) %>%
   summarise(moisture = mean(moisture, na.rm = TRUE),
@@ -275,121 +211,12 @@ soil_09_17_ash <- soil_09_17_ash %>%
   filter(!is.na(bd)) %>%
   cbind(height) %>%
   mutate(depth0 = depth1-height,
-         treatment = as.character(treatment)) %>%
-  select(year, block, fence, treatment, ash.mass, depth0, depth1, height, bd, moisture)
-
-# prep alt data for joining
-alt <- ALTsub %>%
-  select(year, fence, plot, treatment, ALT) %>%
-  filter(year == 2009 | year == 2013 | year == 2017) %>%
-  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
-                            'c',
-                            'w')) %>%
-  group_by(year, fence, treatment) %>%
-  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
-            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
-
-# join alt with soil_09_17_ash
-soil_ash_alt <- soil_09_17_ash %>%
-  group_by(year, block, fence, treatment) %>%
-  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
-  filter(-mean.ALT > depth0 & -mean.ALT < depth1 | 
-           fence == 3 & treatment == 'c' & year == 2009 & depth1 == last(depth1) | 
-           year == 2017 & treatment == 'w' & depth1 == last(depth1)) %>%
-  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
-                               ash.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
-                               ash.mass + 5*(-mean.ALT-depth1)/height))
-
-# calculate subsidence, change in bd, and change in moisture in each layer
-soil_09_ash <- soil_09_17_ash %>%
-  filter(year == 2009) %>%
-  select(block, fence, treatment, ash.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
-
-soil_core_sub_ash <- soil_09_17_ash %>%
-  filter(year == 2013 | year == 2017) %>%
-  arrange(year, block, fence, treatment, ash.mass) %>%
-  inner_join(soil_09_ash, by = c('block', 'fence', 'treatment', 'ash.mass')) %>%
-  mutate(subsidence = height - height.2009,
-         delta.bd = bd - bd.2009,
-         delta.moisture = moisture - moisture.2009,
+         treatment = as.character(treatment),
          type = 'ash') %>%
-  select(year, type, block, fence, treatment, mass = ash.mass, subsidence, delta.bd, delta.moisture)
+  select(year, block, fence, treatment, type, mass = ash.mass, depth0, depth1, height, bd, moisture)
 ####################################################################################################################################
 
-### calculate the height of cores with the same amount of soil mass in 2009 vs. 2013 ###############################################
-goal.max <- ash_mass_09_13 %>%
-  group_by(year, block, fence, treatment) %>%
-  filter(soil.mass.tot == max(soil.mass.tot, na.rm = TRUE)) %>%
-  group_by(block, fence, treatment) %>%
-  filter(soil.mass.tot == min(soil.mass.tot, na.rm = TRUE)) %>%
-  ungroup() %>%
-  arrange(block, fence, treatment) %>%
-  select(year, block, fence, treatment, soil.mass.tot)
-goal <- c(seq(0, 65, 5), goal.max$soil.mass.tot)
-
-# extract depths to chosen uniform soil mass values: (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
-depth <- ash_mass_09_13 %>%
-  do({ data.frame( depth1 = get.height(.$depth0, .$depth1, .$soil.mass, goal)) })
-
-# average bulk density for each of the previously calculated depths
-bd <- ash_mass_09_13 %>%
-  do({ data.frame( bd = avg.soil.prop(.$depth0, .$depth1, .$soil.mass, .$bulk.density, goal))})
-
-# average moisture for each of the previously calculated depths
-moisture <- ash_mass_09_13 %>%
-  do({ data.frame( moisture = avg.soil.prop(.$depth0, .$depth1, .$soil.mass, .$moisture, goal))})
-
-# join depth, bd, and moisture dataframes into one
-soil_09_13_soil <- depth %>%
-  cbind.data.frame(bd = bd$bd, moisture = moisture$moisture) %>%
-  mutate(soil.mass = rep(goal, 24),
-         depth1 = ifelse(soil.mass == 0,
-                         0,
-                         depth1),
-         group.id = group_indices(., block, fence, treatment),
-         goal.id = rep(c(rep(0, 14), seq(1, 12)), 24)) %>%
-  filter(!is.na(depth1)) %>%
-  filter(soil.mass == round(soil.mass, 0) | group.id == goal.id) %>%
-  select(year, block, fence, treatment, soil.mass, depth1, bd, moisture) %>%
-  arrange(year, block, fence, treatment, soil.mass)
-
-
-height <- soil_09_13_soil$depth1 %>%
-  diff()
-height <- height[height >= 0]
-
-soil_09_13_soil <- soil_09_13_soil %>%
-  filter(!is.na(bd)) %>%
-  cbind(height) %>%
-  mutate(depth0 = depth1-height) %>%
-  select(year, block, fence, treatment, soil.mass, depth0, depth1, height, bd, moisture)
-
-# join alt with soil_09_13_soil
-soil_alt <- soil_09_13_soil %>%
-  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
-  filter(-mean.ALT > depth0 & -mean.ALT < depth1) %>%
-  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
-                               soil.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
-                               soil.mass + (-mean.ALT-depth1)*soil.mass/height))
-
-# calculate subsidence, change in bd, and change in moisture in each layer
-soil_09_soil <- soil_09_13_soil %>%
-  filter(year == 2009) %>%
-  select(block, fence, treatment, soil.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
-
-soil_core_sub_soil <- soil_09_13_soil %>%
-  filter(year == 2013) %>%
-  select(block, fence, treatment, soil.mass, depth0.2013 = depth0, depth1.2013 = depth1, height.2013 = height, bd.2013 = bd, moisture.2013 = moisture) %>%
-  full_join(soil_09_soil, by = c('block', 'fence', 'treatment', 'soil.mass')) %>%
-  arrange(block, fence, treatment, soil.mass) %>%
-  mutate(subsidence = height.2013 - height.2009,
-         delta.bd = bd.2013 - bd.2009,
-         delta.moisture = moisture.2013 - moisture.2009,
-         type = 'soil') %>%
-  select(type, block, fence, treatment, mass = soil.mass, subsidence, delta.bd, delta.moisture)
-####################################################################################################################################
-
-### calculate the height of cores with the same amount of soil mass in 2009 vs. 2017 ###############################################
+### calculate the height of cores with the same ('goal') amounts of soil mass in all years ###############################################
 goal.max <- ash_mass_09_17 %>%
   group_by(year, block, fence, treatment) %>%
   filter(soil.mass.tot == max(soil.mass.tot, na.rm = TRUE)) %>%
@@ -428,7 +255,6 @@ soil_09_17_soil <- depth %>%
   select(year, block, fence, treatment, soil.mass, depth1, bd, moisture) %>%
   arrange(year, block, fence, treatment, soil.mass)
 
-
 height <- soil_09_17_soil$depth1 %>%
   diff()
 height <- height[height >= 0]
@@ -436,114 +262,113 @@ height <- height[height >= 0]
 soil_09_17_soil <- soil_09_17_soil %>%
   filter(!is.na(bd)) %>%
   cbind(height) %>%
-  mutate(depth0 = depth1-height) %>%
-  select(year, block, fence, treatment, soil.mass, depth0, depth1, height, bd, moisture)
-
-# join alt with soil_09_17_soil
-soil_alt <- soil_09_17_soil %>%
-  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
-  group_by(year, fence, treatment) %>%
-  filter(-mean.ALT > depth0 & -mean.ALT < depth1 |
-           year == 2017 & treatment == 'w' & depth1 == last(depth1)) %>%
-  mutate(mean.ALT.ash = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
-                               soil.mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
-                               soil.mass + 5*(-mean.ALT-depth1)/height)) %>%
-  ungroup()
-
-# calculate subsidence, change in bd, and change in moisture in each layer
-soil_09_soil <- soil_09_17_soil %>%
-  filter(year == 2009) %>%
-  select(block, fence, treatment, soil.mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
-
-soil_core_sub_soil <- soil_09_17_soil %>%
-  filter(year == 2013 | year == 2017) %>%
-  full_join(soil_09_soil, by = c('block', 'fence', 'treatment', 'soil.mass')) %>%
-  arrange(block, fence, treatment, soil.mass) %>%
-  mutate(subsidence = height - height.2009,
-         delta.bd = bd - bd.2009,
-         delta.moisture = moisture - moisture.2009,
+  mutate(depth0 = depth1-height,
          type = 'soil') %>%
-  select(year, type, block, fence, treatment, mass = soil.mass, subsidence, delta.bd, delta.moisture)
+  select(year, block, fence, treatment, type, mass = soil.mass, depth0, depth1, height, bd, moisture)
+
+
+rm(goal, depth, bd, moisture, goal.max, height, rep.goal)
 ####################################################################################################################################
 
 ### Compare soil normalized and ash normalized soil core subsidence by soil profile layer ################################################################
-# this data frame has the subsidence, bd, and moisture change by soil profile layer for both ash and soil normalization methods
-soil_core_sub <- soil_core_sub_ash %>%
-  rbind.data.frame(soil_core_sub_soil)
+### join ash normalized and soil normalized data into one data frame and add in alt 
+# prep alt data for joining to normalized data
+alt <- ALTsub %>%
+  select(year, fence, plot, treatment, ALT) %>%
+  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+                            'c',
+                            'w')) %>%
+  group_by(year, fence, treatment) %>%
+  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
+
+# this data frame has the raw values of height, bd, moisture by soil profile layer for both ash and soil normalization methods
+soil_core_normalized <- soil_09_17_ash %>%
+  rbind.data.frame(soil_09_17_soil) %>%
+  ungroup()
+
+### filter to only keep the rows of data that can be used to calculate the ash alt
+norm_alt <- soil_core_normalized %>%
+  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
+  group_by(year, fence, treatment, type) %>%
+  filter(if (any(-mean.ALT > depth0 & -mean.ALT < depth1)) {
+    -mean.ALT > depth0 & -mean.ALT < depth1
+  } else {
+    depth1 == last(depth1)
+  }) %>%
+  mutate(mean.ALT.norm = ifelse(-mean.ALT > depth0 & -mean.ALT < depth1,
+                                mass - 5 + 5*(-mean.ALT-depth0)/(depth1-depth0),
+                                mass + 5*(-mean.ALT-depth1)/height)) %>%
+  ungroup()
 
 # create vector of starting ash mass
-start_ash <- soil_core_sub %>%
-  filter(type == 'ash') %>%
+start_ash <- soil_core_normalized %>%
   select(mass)
 
 start_ash <- c(0, start_ash$mass)
 start_ash <- diff(start_ash)
-start_ash <- replace(start_ash, start_ash < 0, 5)
+start_ash <- replace(start_ash, start_ash <= 0, 5)
 
 # this data frame can be used to test if there was more subsidence (or bd or moisture change) in the expanding active layer than previously thawed areas
-soil_core_sub_alt <- soil_core_sub %>%
-  filter(type == 'ash') %>%
-  left_join(select(filter(soil_alt, year == 2009), block, fence, treatment, mean.ALT.ash), by = c('block', 'fence', 'treatment')) %>%
-  rename(mean.ALT.ash.2009 = mean.ALT.ash) %>%
-  left_join(select(filter(soil_alt, year == 2013), block, fence, treatment, mean.ALT.ash), by = c('block', 'fence', 'treatment')) %>%
-  rename(mean.ALT.ash.2013 = mean.ALT.ash) %>%
-  left_join(select(filter(soil_alt, year == 2017), block, fence, treatment, mean.ALT.ash), by = c('block', 'fence', 'treatment')) %>%
-  rename(mean.ALT.ash.2017 = mean.ALT.ash) %>%
-  mutate(delta.mass = start_ash,
-         mass0 = mass - delta.mass,
-         depth.category = ifelse(mass <= mean.ALT.ash.2009,
-                                 'old.active.layer',
-                                 ifelse(year == 2013 & mass0 > mean.ALT.ash.2013 |
-                                          year == 2017 & mass0 > mean.ALT.ash.2013 & mass0 > mean.ALT.ash.2017,
-                                        'permafrost',
-                                        'new.active.layer')),
-         depth.category = factor(depth.category, levels = c('old.active.layer', 'new.active.layer', 'permafrost'))) %>%
+soil_core_norm_alt <- soil_core_normalized %>%
+  mutate(delta.mass = start_ash) %>%
+  left_join(select(norm_alt, year:type, mean.ALT:mean.ALT.norm), by = c('year', 'type', 'block', 'fence', 'treatment')) %>%
+  group_by(block, fence, treatment, type) %>%
+  mutate(mass0 = mass - delta.mass,
+         mass0 = ifelse(mass0 < 0,
+                        0,
+                        mass0),
+         depth.category = ifelse(depth0 <= 25,
+                                 'surface',
+                                 ifelse(depth0 > 25 & depth1 <= first(-mean.ALT),
+                                         'old.active.layer',
+                                         ifelse(depth0 > max(-mean.ALT),
+                                                'permafrost',
+                                                'new.active.layer'))),
+                                 depth.category = factor(depth.category, levels = c('surface', 'old.active.layer', 'new.active.layer', 'permafrost')))
+
+rm(start_ash)
+
+### calculate subsidence and change in bd and moisture
+# separate out the 09 reference to calculate subsidence
+soil_09_normalized <- soil_core_norm_alt %>%
+  filter(year == 2009) %>%
+  select(block, fence, treatment, type, mass0, mass, depth0.2009 = depth0, depth1.2009 = depth1, height.2009 = height, bd.2009 = bd, moisture.2009 = moisture)
+
+# calculate subsidence and change in bd and moisture
+soil_core_sub <- soil_core_norm_alt %>%
+  filter(year != 2009) %>%
+  full_join(soil_09_normalized, by = c('block', 'fence', 'treatment', 'type', 'mass0', 'mass')) %>%
+  mutate(subsidence = height - height.2009,
+         delta.bd = bd - bd.2009,
+         delta.moisture = moisture - moisture.2009) %>%
+  select(year, type, block, fence, treatment, mass0, mass, depth0, depth1, depth.category, mean.ALT, mean.ALT.norm, subsidence, delta.bd, delta.moisture)
+
+
+
+
+
+### !!! The next two data frames seem to be giving different amounts of subsidence!!! ###
+
+
+
+
+
+
+# this data frame has the total subsidence across paired cores and depth categories
+soil_core_sub_summary_layer <- soil_core_sub %>%
   group_by(year, type, block, fence, treatment, depth.category) %>%
   filter(!is.na(subsidence) & type == 'ash') %>%
-  summarise(total.sub.per.grams.ash = sum(subsidence, na.rm = TRUE)/(max(mass)-min(mass0)),
+  summarise(total.sub = sum(subsidence, na.rm = TRUE),
             avg.delta.bd = mean(delta.bd, na.rm = TRUE),
             se.delta.bd = sd(delta.bd, na.rm = TRUE)/sqrt(n()),
             avg.delta.moisture = mean(delta.moisture, na.rm = TRUE),
-            se.delta.moisture = sd(delta.moisture, na.rm = TRUE)/sqrt(n())) %>%
-  mutate(total.sub.per.grams.ash = ifelse(total.sub.per.grams.ash == 0 & is.na(avg.delta.bd),
-                                   NA,
-                                   total.sub.per.grams.ash))
-
-# change in subsidence per gram ash over time
-soil_core_sub_alt %>%
-  group_by(year, treatment, depth.category) %>%
-  summarise(total.sub.per.grams.ash = mean(total.sub.per.grams.ash, na.rm = TRUE)) %>%
-ggplot(aes(x = year, y = total.sub.per.grams.ash, color = treatment, linetype = depth.category)) +
-  geom_line()
-
-# change in bulk density over time
-soil_core_sub_alt %>%
-  group_by(year, treatment, depth.category) %>%
-  summarise(mean.delta.bd = mean(avg.delta.bd, na.rm = TRUE)) %>%
-  ggplot(aes(x = year, y = mean.delta.bd, color = treatment, linetype = depth.category)) +
-  geom_line()
-
-# change in bulk density over time
-soil_core_sub_alt %>%
-  group_by(year, treatment, depth.category) %>%
-  summarise(mean.delta.moisture = mean(avg.delta.moisture, na.rm = TRUE)) %>%
-  ggplot(aes(x = year, y = mean.delta.moisture, color = treatment, linetype = depth.category)) +
-  geom_line()
-
-# # difference in subsidence per depth in old vs. new active layer is not significant (retest with 2017 data and test lm over time)
-# t.test(subset(soil_core_sub_alt$total.sub.per.grams.ash, soil_core_sub_alt$depth.category == 'old.active.layer'),
-#        subset(soil_core_sub_alt$total.sub.per.grams.ash, soil_core_sub_alt$depth.category == 'new.active.layer'),
-#        alternative = 'greater')
-# 
-# # difference in change in bd in old vs. new active layer is significant (should do lm with change in bd over time when 2017 is added)
-# t.test(subset(soil_core_sub_alt$avg.delta.bd, soil_core_sub_alt$depth.category == 'old.active.layer'),
-#        subset(soil_core_sub_alt$avg.delta.bd, soil_core_sub_alt$depth.category == 'new.active.layer'),
-#        alternative = 'less')
-# 
-# # difference in change in moisture in old vs. new active layer is significant
-# t.test(subset(soil_core_sub_alt$avg.delta.moisture, soil_core_sub_alt$depth.category == 'old.active.layer'),
-#        subset(soil_core_sub_alt$avg.delta.moisture, soil_core_sub_alt$depth.category == 'new.active.layer'),
-#        alternative = 'greater')
+            se.delta.moisture = sd(delta.moisture, na.rm = TRUE)/sqrt(n()),
+            mass0 = first(mass0),
+            mass = last(mass)) %>%
+  mutate(total.sub.per.grams.ash = ifelse(total.sub == 0 & is.na(avg.delta.bd),
+                                          NA,
+                                          total.sub/(max(mass)-min(mass0))))
 
 # this data frame has the total subsidence across paired cores using both the ash and the soil normalization methods (should do lm with change in bd over time when 2017 is added)
 soil_core_sub_summary <- soil_core_sub %>%
@@ -558,6 +383,35 @@ soil_core_sub_summary <- soil_core_sub %>%
   mutate(total.subsidence = ifelse(total.subsidence == 0 & is.na(avg.delta.bd),
                                    NA,
                                    total.subsidence))
+
+# change in subsidence per gram ash over time by layer
+soil_core_sub_summary_layer %>%
+  group_by(year, treatment, depth.category) %>%
+  summarise(total.sub.per.grams.ash = mean(total.sub.per.grams.ash, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = total.sub.per.grams.ash, color = treatment, linetype = depth.category)) +
+  geom_line()
+
+# change in total subsidence over time by layer
+soil_core_sub_summary_layer %>%
+  group_by(year, treatment, depth.category) %>%
+  summarise(total.sub = mean(total.sub, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = total.sub, color = treatment, linetype = depth.category)) +
+  geom_line()
+
+# change in bulk density over time by layer
+soil_core_sub_summary_layer %>%
+  group_by(year, treatment, depth.category) %>%
+  summarise(mean.delta.bd = mean(avg.delta.bd, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean.delta.bd, color = treatment, linetype = depth.category)) +
+  geom_line()
+
+# change in moisture over time
+soil_core_sub_summary_layer %>%
+  group_by(year, treatment, depth.category) %>%
+  summarise(mean.delta.moisture = mean(avg.delta.moisture, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean.delta.moisture, color = treatment, linetype = depth.category)) +
+  geom_line()
+
 soil_core_sub_summary %>%
   group_by(year, type, treatment) %>%
   summarise(mean.total.subsidence = mean(total.subsidence, na.rm = TRUE)) %>%
@@ -568,14 +422,14 @@ soil_core_sub_summary %>%
 soil_core_sub_sum_ash <- soil_core_sub_summary %>%
   filter(type == 'ash') %>%
   ungroup() %>%
-  select(block, fence, treatment, subsidence.ash = total.subsidence)
+  select(year, block, fence, treatment, subsidence.ash = total.subsidence)
 
 # this data frame compares the subsidence due to bulk density changes only, carbon loss only, and total
 soil_core_sub_summary_2 <- soil_core_sub_summary %>%
   filter(type == 'soil') %>%
   ungroup() %>%
-  select(block, fence, treatment, subsidence.soil = total.subsidence) %>%
-  full_join(soil_core_sub_sum_ash, by = c('block', 'fence', 'treatment')) %>%
+  select(year, block, fence, treatment, subsidence.soil = total.subsidence) %>%
+  full_join(soil_core_sub_sum_ash, by = c('year', 'block', 'fence', 'treatment')) %>%
   mutate(subsidence.c = subsidence.ash - subsidence.soil)
 ####################################################################################################################################
 

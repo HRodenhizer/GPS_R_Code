@@ -28,7 +28,7 @@ cn_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil C
 # commented out sections will need to be incorporated once all data have been collected
 # format ash data
 ash_17_v2 <- ash_17 %>%
-  mutate(ash = `Ash Mass (g)`/`Dry Soil Mass (g)`*1000) %>% # g ash/g soil * 1000g/1kg = g ash/kg soil
+  mutate(ash = `Ash Mass (%)`*1000) %>% # g ash/g soil * 1000g/1kg = g ash/kg soil
   separate(depth, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
   mutate(depth0 = as.numeric(depth0),
          depth1 = as.numeric(depth1)) %>%
@@ -63,6 +63,12 @@ avg_ash_4_2_17 <- ash_17_v2 %>%
 #   mutate(depth = '25-35',
 #          new.depth0 = 25,
 #          new.depth1 = 35)
+
+# replace incorrect depth value in core 5-6
+soil_17 <- soil_17 %>%
+  mutate(depth = ifelse(Fence == 5 & plot == 6 & depth == '0-6.5' | Fence == 6 & plot == 8 & depth == '0-6.5',
+                        '0-5',
+                        depth))
 
 # join soil, ash, cn data for 2017
 soil_17_v2 <- soil_17 %>%
