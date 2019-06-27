@@ -61,6 +61,14 @@ point_distances <- points19xy %>%
                                'b',
                                'c')))
 
+mean_distance <- mean(point_distances$distance, na.rm = TRUE)
+sd_distance <- sd(point_distances$distance, na.rm = TRUE)
+max_distance <- max(point_distances$distance, na.rm = TRUE)
+min_distance <- min(point_distances$distance, na.rm = TRUE)
+
+ggplot(point_distances, aes(x = block, y = distance)) +
+  geom_boxplot()
+
 # turn the distances into a list for using the map function
 distance_list <- list(filter(point_distances, block == 'a'),
                       filter(point_distances, block == 'b'),

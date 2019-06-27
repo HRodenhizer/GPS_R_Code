@@ -117,13 +117,28 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal ){
 ####################################################################################################################################
 
 ### calculate the height of cores with the same ('goal') amounts of ash mass in all years ##########################################
+# prep alt data for joining to soil core data
+alt <- ALTsub %>%
+  select(year, fence, plot, treatment, ALT) %>%
+  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
+                            'c',
+                            'w')) %>%
+  group_by(year, fence, treatment) %>%
+  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
+
+soil_09_17 <- soil_09_17 %>%
+  left_join(alt, by = c('year', 'fence', 'treatment'))
+
 # first some summaries of the data just to see what's going on
 avg <- soil_09_17 %>%
+  filter(depth1 <= -mean.ALT) %>%
   summarise(mean.moisture = mean(moisture, na.rm = TRUE),
             mean.bulk.density = mean(bulk.density, na.rm = TRUE),
             mean.ash = mean(ash, na.rm = TRUE))
 
 year_avg <- soil_09_17 %>%
+  filter(depth1 <= -mean.ALT) %>%
   mutate(layer.type = ifelse(depth1 <= 35,
                              'surface',
                              ifelse(depth1 <= 65,
@@ -134,7 +149,15 @@ year_avg <- soil_09_17 %>%
             mean.bulk.density = mean(bulk.density, na.rm = TRUE),
             mean.ash = mean(ash, na.rm = TRUE))
 
+year_treat_avg <- soil_09_17 %>%
+  filter(depth1 <= -mean.ALT) %>%
+  group_by(year, treatment) %>%
+  summarise(mean.moisture = mean(moisture, na.rm = TRUE)) %>%
+  group_by(treatment) %>%
+  mutate(correction.factor = mean.moisture/mean(mean.moisture))
+
 year_layer_avg <- soil_09_17 %>%
+  filter(depth1 <= -mean.ALT) %>%
   mutate(layer.type = ifelse(depth1 <= 35,
                              'surface',
                              ifelse(depth1 <= 65,
@@ -143,7 +166,21 @@ year_layer_avg <- soil_09_17 %>%
   group_by(year, layer.type) %>%
   summarise(mean.moisture = mean(moisture, na.rm = TRUE),
             mean.bulk.density = mean(bulk.density, na.rm = TRUE),
-            mean.ash = mean(ash, na.rm = TRUE))
+            mean.ash = mean(ash, na.rm = TRUE)) %>%
+  group_by(layer.type) %>%
+  mutate(correction.factor = mean.moisture/mean(mean.moisture))
+
+year_layer_treat_avg <- soil_09_17 %>%
+  filter(depth1 <= -mean.ALT) %>%
+  mutate(layer.type = ifelse(depth1 <= 35,
+                             'surface',
+                             ifelse(depth1 <= 65,
+                                    'mid',
+                                    'deep'))) %>%
+  group_by(year, layer.type, treatment) %>%
+  summarise(mean.moisture = mean(moisture, na.rm = TRUE)) %>%
+  group_by(layer.type, treatment) %>%
+  mutate(correction.factor = mean.moisture/mean(mean.moisture[which(year != 2017)]))
 
 ggplot(year_layer_avg, aes(x = year)) +
   geom_line(aes(y = mean.moisture), color = 'blue') +
@@ -172,17 +209,56 @@ mean.moisture <- avg$mean.moisture[1]
 # calculate soil and ash stock in g/cm^2
 ash_mass_09_17 <- soil_09_17 %>%
   select(1:11) %>% # get rid of everything else, since Cesar used decigrams for his calculations, and I would rather stick to grams
+  mutate(layer.type = ifelse(depth1 <= 35,
+                             'surface',
+                             ifelse(depth1 <= 65,
+                                    'mid',
+                                    'deep'))) %>%
   filter(!is.na(moisture)) %>%
+  left_join(year_layer_treat_avg, by = c('year', 'treatment', 'layer.type')) %>%
+  left_join(alt, by = c('year', 'fence', 'treatment')) %>%
+  mutate(moisture = ifelse(depth1 > -mean.ALT,
+                           moisture,
+                           moisture/correction.factor),
+         bulk.density = ifelse(depth1 > -mean.ALT,
+                               bulk.density,
+                               bulk.density*correction.factor),
+         ash = ifelse(depth1 > -mean.ALT,
+                      ash,
+                      ash*correction.factor),
+         soil.mass = ifelse(depth1 > -mean.ALT,
+                            bulk.density*(depth1 - depth0),
+                            bulk.density*(depth1 - depth0)*correction.factor)) %>% # moisture corrected bulk.density(g/cm^3), depths(cm), soil mass(g/cm^2)
   group_by(year, block, fence, treatment, depth0, depth1) %>%
   summarise(moisture = mean(moisture, na.rm = TRUE),
             bulk.density = mean(bulk.density, na.rm = TRUE),
-            ash = mean(ash, na.rm = TRUE)) %>%
+            ash = mean(ash, na.rm = TRUE),
+            soil.mass = mean(soil.mass, na.rm = TRUE)) %>%
   group_by(year, block, fence, treatment) %>%
-  mutate(soil.mass = bulk.density*(depth1 - depth0), # bulk.density(g/cm^3), depths(cm), soil mass(g/cm^2)
-         soil.mass.tot = cumsum(soil.mass),
+  mutate(soil.mass.tot = cumsum(soil.mass),
          ash.mass = ash*bulk.density*(depth1 - depth0)/1000, # ash(g/kg), bd(g/cm^3), depths(cm), ash mass(g/cm^2)
          ash.mass.tot = cumsum(ash.mass)) %>%
+  group_by(year, block, fence, treatment) %>%
   filter(!is.na(ash.mass.tot)) # remove empty lines when data set is complete
+
+# take a look at how the normalization did
+ash_mass_09_17 %>%
+  mutate(layer.type = ifelse(depth1 <= 35,
+                             'surface',
+                             ifelse(depth1 <= 65,
+                                    'mid',
+                                    'deep'))) %>%
+  group_by(year, layer.type, treatment) %>%
+  summarise(moisture = mean(moisture, na.rm = TRUE),
+            bulk.density = mean(bulk.density, na.rm = TRUE),
+            ash = mean(ash, na.rm = TRUE),
+            soil.mass = mean(soil.mass, na.rm = TRUE)) %>%
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = moisture), color = 'blue') +
+  geom_line(aes(y = bulk.density*1000), color = 'black') +
+  geom_line(aes(y = ash), color = 'grey') +
+  geom_line(aes(y = soil.mass*100), color = 'brown') +
+  facet_grid(treatment ~ layer.type)
 
 # set 'goal' ash amounts by 5 and then add in the max shared ash amount as an additional goal
 # (to be able to specifically compare the subsidence for the entire shared core depth without extrapolating to the next 5 grams of ash)
@@ -294,16 +370,6 @@ rm(goal, depth, bd, moisture, goal.max, height, rep.goal)
 
 ### Compare soil normalized and ash normalized soil core subsidence by soil profile layer ################################################################
 ### join ash normalized and soil normalized data into one data frame and add in alt 
-# prep alt data for joining to normalized data
-alt <- ALTsub %>%
-  select(year, fence, plot, treatment, ALT) %>%
-  mutate(treatment = ifelse(treatment == 'Control' | treatment == 'Air Warming',
-                            'c',
-                            'w')) %>%
-  group_by(year, fence, treatment) %>%
-  summarise(mean.ALT = mean(ALT, na.rm = TRUE),
-            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
-
 # this data frame has the raw values of height, bd, moisture by soil profile layer for both ash and soil normalization methods
 soil_core_normalized <- soil_09_17_ash %>%
   rbind.data.frame(soil_09_17_soil) %>%
@@ -499,29 +565,29 @@ soil_core_sub_summary_2 <- soil_core_sub_summary %>%
 ####################################################################################################################################
 
 ### Plots of soil profiles #############################################################################
-# plots with all years values compared in one facet
-ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = height, y = -mass1, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
-  facet_grid(treatment~fence)
-
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/section_height_profile.pdf')
-
-ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = bd, y = -mass1, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
-  facet_grid(treatment~fence)
-
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/bd_profile.pdf')
-
-ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = moisture, y = -mass1, color = as.factor(year))) +
-  geom_point() +
-  geom_path() +
-  geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
-  facet_grid(treatment~fence)
-
+# # plots with all years values compared in one facet
+# ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = height, y = -mass1, color = as.factor(year))) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
+#   facet_grid(treatment~fence)
+# 
+# # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/section_height_profile.pdf')
+# 
+# ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = bd, y = -mass1, color = as.factor(year))) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
+#   facet_grid(treatment~fence)
+# 
+# # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/bd_profile.pdf')
+# 
+# ggplot(filter(soil_core_normalized, type == 'ash'), aes(x = moisture, y = -mass1, color = as.factor(year))) +
+#   geom_point() +
+#   geom_path() +
+#   geom_hline(aes(yintercept = -mean.ALT.norm, color = as.factor(year))) +
+#   facet_grid(treatment~fence)
+# 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/moisture_profile.pdf')
 ####################################################################################################################################
 
@@ -600,9 +666,9 @@ for (i in 1:length(Elevation)) {
   subsidence09_17[[i]] <- brick(Elevation[[i]][[5]] - Elevation[[i]][[1]], # calculate subsidence from gap filled elevation raster stack
                                 Elevation[[i]][[9]] - Elevation[[i]][[1]])
   subsidence09_17[[i]]@file@name <- 'subsidence'
-  plot(subsidence09_17[[i]]) # plot to make sure it looks reasonable
-  plot(as_Spatial(filter(st_zm(water_wells), block == unique(block)[[i]])), add = TRUE)
-  plot(Elevation[[i]])
+  # plot(subsidence09_17[[i]]) # plot to make sure it looks reasonable
+  # plot(as_Spatial(filter(st_zm(water_wells), block == unique(block)[[i]])), add = TRUE)
+  # plot(Elevation[[i]])
   rm(i)
 }
 
@@ -692,12 +758,12 @@ sub_comparison_graph <- sub_comparison %>%
 g1 <- ggplot(sub_comparison_graph, aes(x = source, y = subsidence)) +
   geom_boxplot() +
   theme_few() +
-  ggtitle('Comparison of Subsidence Methods (Average of Moisture Normalized 2013 and 2017)') # +
-  # facet_grid(year~treatment)
+  ggtitle('Comparison of Subsidence Methods (Average of Moisture Normalized 2013 and 2017)') +
+  facet_grid(year~treatment)
   # annotate('text', x = 'subsidence.ash', y = 20, label = '*', size = 12)
 g1
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_.pdf', g1)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_summary_.pdf', g1)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_moisture_normalized.pdf', g1)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_summary_moisture_normalized.pdf', g1)
 
 # g1_no_surface <- ggplot(sub_comparison_graph_no_surface, aes(x = source, y = subsidence)) +
 #   geom_boxplot() +
@@ -752,7 +818,7 @@ g3
 #   geom_smooth(method = lm) +
 #   facet_grid(.~treatment)
 # g3_no_surface
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_by_year.pdf', g3)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_by_year_moisture_normalized.pdf', g3)
 ####################################################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
