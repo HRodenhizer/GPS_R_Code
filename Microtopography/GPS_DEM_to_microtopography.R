@@ -1,29 +1,40 @@
 ########################################################################################
-###                 DEM to microtophography                                          ###
-###                 Code by HGR 2018                                                 ###
+###                           DEM to microtopography                                 ###
+###                              Code by HGR 2018                                    ###
 ########################################################################################
 
-# Load librarires
+### Load libraries #####################################################################
 library(tidyverse)
 library(raster)
+########################################################################################
 
+#################### Import raster files################################################
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/',
+                        pattern = '.*unclipped.tif',
+                        full.names = TRUE)
+elevation <- map(filenames, ~ brick(.x))
+rm(filenames)
+########################################################################################
 
-####################Import raster files########################################
-A2009raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/A2009K.tif")
-B2009raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/B2009K.tif")
-C2009raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/C2009K.tif")
-A2011raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/A2011K.tif")
-B2011raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/B2011K.tif")
-C2011raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/C2011K.tif")
-A2015raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/A2015K.tif")
-B2015raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/B2015K.tif")
-C2015raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/C2015K.tif")
-A2016raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/A2016K.tif")
-B2016raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/B2016K.tif")
-C2016raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/C2016K.tif")
-A2017raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/A2017K.tif")
-B2017raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/B2017K.tif")
-C2017raster <- raster("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/C2017K.tif")
-###############################################################################
+### Calculate microtopography ##########################################################
+# create a matrix of weights to calculate the mean in an approximate circle with radius 30 m
+weights <- matrix(c(rep(0, 5), rep(1, 5),  rep(0, 5),
+                    rep(0, 3), rep(1, 9),  rep(0, 3),
+                    rep(0, 2), rep(1, 11), rep(0, 2),
+                    rep(c(0, rep(1, 13), 0), 2),
+                    rep(rep(1, 15), 5),
+                    rep(c(0, rep(1, 13), 0), 2),
+                    rep(0, 2), rep(1, 11), rep(0, 2),
+                    rep(0, 3), rep(1, 9),  rep(0, 3),
+                    rep(0, 5), rep(1, 5),  rep(0, 5)),
+                    nrow = 15)
 
-
+# resample elevation to 30 m average
+avg_elev <- list(raster(), raster(), raster())
+for (i in 1: length(elevation)) {
+  for (k in 1:nlayers(elevation[[i]])) {
+    temp_raster <- focal(elevation[[i]][[k]], weights, mean, na.rm = TRUE)
+    avg_elev[[i]] <- brick(avg_elev[[i]], temp_raster) # this line isn't working
+  }
+}
+########################################################################################
