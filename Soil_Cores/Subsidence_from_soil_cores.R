@@ -4,7 +4,6 @@
 ####################################################################################################################################
 
 ### load libraries #################################################################################################################
-library(plyr)
 library(raster)
 library(readxl)
 library(sf)
@@ -137,18 +136,18 @@ year_avg <- soil_09_17 %>%
 year_layer_avg <- soil_09_17 %>%
   mutate(layer.type = ifelse(depth1 <= 35,
                              'surface',
-                             ifelse(depth1 <= 65,
-                                    'mid',
-                                    'deep'))) %>%
+                             'deep')) %>%
   group_by(year, layer.type) %>%
   summarise(mean.moisture = mean(moisture, na.rm = TRUE),
             mean.bulk.density = mean(bulk.density, na.rm = TRUE),
-            mean.ash = mean(ash, na.rm = TRUE))
+            mean.ash = mean(ash, na.rm = TRUE),
+            mean.soil.mass = mean(bulk.density*(depth1 - depth0), na.rm = TRUE))
 
 ggplot(year_layer_avg, aes(x = year)) +
   geom_line(aes(y = mean.moisture), color = 'blue') +
-  geom_line(aes(y = mean.bulk.density*1000), color = 'brown') +
+  geom_line(aes(y = mean.bulk.density*1000), color = 'black') +
   geom_line(aes(y = mean.ash), color = 'grey') +
+  geom_line(aes(y = mean.soil.mass*100), color = 'brown') +
   facet_grid(. ~ layer.type)
 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/moisture_bd_ash.pdf')
@@ -692,12 +691,12 @@ sub_comparison_graph <- sub_comparison %>%
 g1 <- ggplot(sub_comparison_graph, aes(x = source, y = subsidence)) +
   geom_boxplot() +
   theme_few() +
-  ggtitle('Comparison of Subsidence Methods (Average of Moisture Normalized 2013 and 2017)') # +
+  ggtitle('Comparison of Subsidence Methods (Average of 2013 and 2017)') # +
   # facet_grid(year~treatment)
   # annotate('text', x = 'subsidence.ash', y = 20, label = '*', size = 12)
 g1
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_.pdf', g1)
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_summary_.pdf', g1)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp.pdf', g1)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_summary.pdf', g1)
 
 # g1_no_surface <- ggplot(sub_comparison_graph_no_surface, aes(x = source, y = subsidence)) +
 #   geom_boxplot() +

@@ -242,9 +242,7 @@ ash_mass_09_17 <- soil_09_17 %>%
 ash_mass_09_17 %>%
   mutate(layer.type = ifelse(depth1 <= 35,
                              'surface',
-                             ifelse(depth1 <= 65,
-                                    'mid',
-                                    'deep'))) %>%
+                             'deep')) %>%
   group_by(year, layer.type, treatment) %>%
   summarise(moisture = mean(moisture, na.rm = TRUE),
             bulk.density = mean(bulk.density, na.rm = TRUE),
@@ -256,6 +254,8 @@ ash_mass_09_17 %>%
   geom_line(aes(y = ash), color = 'grey') +
   geom_line(aes(y = soil.mass*100), color = 'brown') +
   facet_grid(treatment ~ layer.type)
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/moisture_normalization_by_depth.pdf')
 
 # set 'goal' ash amounts by 5 and then add in the max shared ash amount as an additional goal
 # (to be able to specifically compare the subsidence for the entire shared core depth without extrapolating to the next 5 grams of ash)
@@ -530,7 +530,7 @@ soil_core_sub_summary %>%
   geom_line() +
   scale_color_manual(values = c('blue', 'red'))
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/sub_by_type.pdf')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/sub_by_type_moisture_norm.pdf')
 
 # separate out the ash normalized subsidence
 soil_core_sub_sum_ash <- soil_core_sub_summary %>%
@@ -755,8 +755,8 @@ sub_comparison_graph <- sub_comparison %>%
 g1 <- ggplot(sub_comparison_graph, aes(x = source, y = subsidence)) +
   geom_boxplot() +
   theme_few() +
-  ggtitle('Comparison of Subsidence Methods (Average of Moisture Normalized 2013 and 2017)') # +
-  # facet_grid(year~treatment)
+  ggtitle('Comparison of Subsidence Methods (Moisture Normalized)') +
+  facet_grid(year~treatment)
   # annotate('text', x = 'subsidence.ash', y = 20, label = '*', size = 12)
 g1
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Troubleshooting_Figures/subsidence_method_comp_moisture_normalized.pdf', g1)
