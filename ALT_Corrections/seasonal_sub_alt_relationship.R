@@ -17,6 +17,9 @@ filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur L
                         full.names = TRUE)
 frost_heave <- map(filenames, ~ raster(.x))
 rm(filenames)
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Microtopography/', 
+                        full.names = TRUE)
+microtopography <- map(filenames, ~ raster(.x))
 plots <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp') %>%
   mutate(block = ifelse(fence <= 2,
                         'a',
@@ -31,13 +34,20 @@ plot_list <- list(filter(plots, block == 'a'), filter(plots, block == 'b'), filt
 plot_sub_extract <- map2(frost_heave, plot_list,
                        ~ raster::extract(.x, .y, df = TRUE) %>% 
                          cbind.data.frame(.y) %>%
-                         st_as_sf() %>%
-                         select(exp, block, fence, plot, Name, frost.heave = 2, Easting, Northing, Elevation))
+                         dplyr::select(exp, block, fence, plot, Name, frost.heave = 2, Easting, Northing, Elevation)) %>%
+  bind_rows()
 
-frost_heave_alt <- plot_sub_extract[[1]] %>%
-  rbind.data.frame(plot_sub_extract[[2]], plot_sub_extract[[3]]) %>%
+plot_micro_extract <- map2(microtopography, plot_list,
+                           ~ raster::extract(.x, .y, df = TRUE) %>% 
+                             cbind.data.frame(.y) %>%
+                             dplyr::select(exp, block, fence, plot, Name, microtopography = 2, Easting, Northing, Elevation)) %>%
+  bind_rows()
+
+frost_heave_alt <- plot_sub_extract %>%
+  left_join(plot_micro_extract, by = c('exp', 'block', 'fence', 'plot', 'Name', 'Easting', 'Northing', 'Elevation')) %>%
+  left_join(dplyr::select(filter(ALTsub, year == 2018), -geometry), by = c('exp', 'block', 'fence', 'plot')) %>%
+  left_join(plots, by = c('exp', 'block', 'fence', 'plot', 'Name', 'Easting', 'Northing', 'Elevation')) %>%
   st_as_sf() %>%
-  left_join(select(filter(ALTsub, year == 2018), -geometry), by = c('exp', 'block', 'fence', 'plot')) %>%
   mutate(full.treatment = treatment,
          treatment = ifelse(plot <= 4 | plot == 'a' | plot == 'b',
                              'Control',
@@ -81,6 +91,10 @@ ggplot(frost_heave_alt, aes(x = frost.heave, y = ALT, color = full.treatment, la
   geom_text(aes(label = Name))
 
 ggplot(frost_heave_alt, aes(x = subsidence, y = ALT, color = full.treatment, label = Name)) +
+  geom_point() +
+  geom_text(aes(label = Name))
+
+ggplot(frost_heave_alt, aes(x = microtopography, y = ALT, color = full.treatment, label = Name)) +
   geom_point() +
   geom_text(aes(label = Name))
 
@@ -133,44 +147,66 @@ model2 <- lmer(ALT ~ frost.heave +
 
 summary(model2)
 
-AIC(model1, model2)
-
-# model of ALT by subsidence and frost heave
-model3 <- lmer(ALT ~ subsidence + frost.heave +
+# model of ALT by microtopography
+model3 <- lmer(ALT ~ microtopography +
                  (1 | block2/fencegroup/wholeplot), REML = FALSE,
                data = frost_heave_alt,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model3)
 
-AIC(model1, model3)
+AIC(model1, model2, model3)
 
-# model of ALT by subsidence and soil warming
-model4 <- lmer(ALT ~ subsidence + treatment2.soil +
+# model of ALT by subsidence and frost heave
+model4 <- lmer(ALT ~ subsidence + frost.heave +
                  (1 | block2/fencegroup/wholeplot), REML = FALSE,
                data = frost_heave_alt,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model4)
 
-AIC(model1, model4)
-
-# model of ALT by subsidence and soil and air warming
-model5 <- lmer(ALT ~ subsidence + treatment2.air.soil +
+# model of ALT by subsidence and microtopography
+model5 <- lmer(ALT ~ subsidence + microtopography +
                  (1 | block2/fencegroup/wholeplot), REML = FALSE,
                data = frost_heave_alt,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model5)
 
-AIC(model4, model5)
+AIC(model1, model4, model5)
 
-# model with subsidence, soil warming, and frost heave
-model6 <- lmer(ALT ~ subsidence + treatment2.soil + frost.heave +
+# model of ALT by subsidence and soil warming
+model6 <- lmer(ALT ~ subsidence + treatment2.soil +
                  (1 | block2/fencegroup/wholeplot), REML = FALSE,
                data = frost_heave_alt,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model6)
 
-AIC(model4, model6)
+# model of ALT by subsidence and soil and air warming
+model7 <- lmer(ALT ~ subsidence + treatment2.air.soil +
+                 (1 | block2/fencegroup/wholeplot), REML = FALSE,
+               data = frost_heave_alt,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model7)
+
+AIC(model1, model6, model7)
+
+# model with subsidence, soil warming, and frost heave
+model8 <- lmer(ALT ~ subsidence + treatment2.soil + frost.heave +
+                 (1 | block2/fencegroup/wholeplot), REML = FALSE,
+               data = frost_heave_alt,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model8)
+
+# model with subsidence, soil warming, and frost heave
+model9 <- lmer(ALT ~ subsidence + treatment2.soil + microtopography +
+                 (1 | block2/fencegroup/wholeplot), REML = FALSE,
+               data = frost_heave_alt,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model9)
+
+AIC(model6, model8, model9)

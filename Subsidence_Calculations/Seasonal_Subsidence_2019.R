@@ -10,6 +10,7 @@ library(tidyverse)
 library(ggthemes)
 library(viridis)
 library(gridExtra)
+library(RStoolbox)
 ##############################################################################################################
 
 ### Load data ################################################################################################
@@ -79,7 +80,7 @@ distance_raster <- map2(distance_list, grids, ~ rasterize(st_drop_geometry(.x)[,
 frost_heave <- map2(frost_heave, distance_raster, ~ brick(stack(.x, .y)))
 
 # turn the frost heave/distance raster into a data frame for mapping
-frost_heave_df <- map(frost_heave, ~fortify(.x) %>% 
+frost_heave_df <- map(frost_heave, ~ fortify(.x) %>% 
                         rename(d.elev = layer.1, point.dist = layer.2) %>%
                         mutate(d.elev.2 = ifelse(point.dist < 0.2,
                                                  d.elev,
@@ -97,26 +98,26 @@ summary <- map_dfr(frost_heave_df, ~ summarise(.x,
 
 # map the frost heave with the distances between gps points for that cell overlaid
 titles <- list('A', 'B', 'C')
-map2(frost_heave_df,
+walk2(frost_heave_df,
      distance_list,
-     ~ ggplot(.x, aes(x = long, y = lat, fill = d.elev)) +
-       geom_tile() +
-       geom_point(data = .y, aes(x = Easting, y = Northing, color = distance), inherit.aes = FALSE) +
-       geom_text(data = .y, aes(x = Easting, y = Northing, label = Name), size = 2, inherit.aes = FALSE) +
-       scale_color_viridis() +
-       ggtitle(.y$block) )
+     ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev)) +
+               geom_tile() +
+               geom_point(data = .y, aes(x = Easting, y = Northing, color = distance), inherit.aes = FALSE) +
+               geom_text(data = .y, aes(x = Easting, y = Northing, label = Name), size = 2, inherit.aes = FALSE) +
+               scale_color_viridis() +
+               ggtitle(.y$block)))
 
 # map the frost heave excluding cells with gps points over 20 cm apart
 maps <- frost_heave_df %>%
-  map2(titles,
-      ~ ggplot(.x, aes(x = long, y = lat, fill = d.elev.2)) +
-      geom_tile() +
-      scale_fill_viridis(name = expression(paste(Delta, ' Elevation')),
-                         limits = c(-0.05, 0.2)) +
-      coord_fixed() +
-      theme_few() +
-      theme(axis.title = element_blank()) +
-      ggtitle(paste(.y)))
+  walk2(titles,
+      ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev.2)) +
+                geom_tile() +
+                scale_fill_viridis(name = expression(paste(Delta, ' Elevation')),
+                                   limits = c(-0.05, 0.2)) +
+                coord_fixed() +
+                theme_few() +
+                theme(axis.title = element_blank()) +
+                ggtitle(paste(.y))))
 
 fig <- grid.arrange(maps[[1]], maps[[2]], maps[[3]], ncol = 3)
 fig
