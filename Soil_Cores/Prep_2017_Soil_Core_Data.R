@@ -14,13 +14,32 @@ soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/S
   separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
   mutate(depth0 = as.numeric(depth0),
          depth1 = as.numeric(depth1))
+# samples from S17 on are mislabeled and need to have 1 added to them
 soil_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 Soils_processing data sheet_3_8_18.xlsx',
-                      sheet = 3)
+                      sheet = 3) %>%
+  filter(ID != 'S213') %>%
+  mutate(ID = seq(1, nrow(soil_17)), sep = '',
+         ID = ifelse(ID >= 17,
+                     paste('S', ID + 1, sep = ''),
+                     paste('S', ID, sep = '')))
 ash_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/Ash_Mass_Data_2017.xlsx')
 # this will end up being a bunch of files
-cn_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 CiPHER soil cores _CN data raw_tray one.xlsx',
+cn_17_1 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 CiPHER soil cores _CN data raw_tray one.xlsx',
                     sheet = 2) %>%
   select(1:7) %>%
+  mutate(`%C` = `%C real`,
+         d13C = d13C__1) %>%
+  select(ID = `Final Result`, `%N`, `%C`, d15N, d13C)
+  
+
+cn_17_2 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/190702_2017 CiPEHR soil cores Tray3.xlsx',
+                      sheet = 2) %>%
+  select(1:5) %>%
+  rename(ID = `Final Result`)
+
+cn_17_3 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/190705_2017 CiPEHR soil cores Tray4.xlsx',
+                      sheet = 2) %>%
+  select(1:5) %>%
   rename(ID = `Final Result`)
 ################################################################################################################
 
@@ -35,8 +54,14 @@ ash_17_v2 <- ash_17 %>%
   select(-c(5:9))
 
 # join all the cn data together
-# cn_17_v2 <- cn_17_1 %>% # might need to remove %C and replace with %C real for some or all of the files
-#   rbind.data.frame(cn_17_2) # add other files here and average 4-2.17 25-35
+cn_17_v2 <- cn_17_1 %>% # might need to remove %C and replace with %C real for some or all of the files
+  rbind.data.frame(cn_17_2, cn_17_3) %>% # add other files here and average 4-2.17 25-35
+  group_by(ID) %>%
+  summarise(`%N` = mean(`%N`),
+            `%C` = mean(`%C`),
+            d15N = mean(d15N),
+            d13C = mean(d13C)) %>%
+  ungroup()
 
 # this layer got split into two for ash and CN analysis and needs to be averaged into one layer before joining with soil data
 avg_ash_4_2_17 <- ash_17_v2 %>%
@@ -48,21 +73,22 @@ avg_ash_4_2_17 <- ash_17_v2 %>%
          new.depth1 = 35)
 
 # average this split layer prior to joining with soil data like the split ash layer above
-# avg_cn_4_2_17 <- cn17_v2 %>%
-#   filter(ID == S126 | ID == S214) %>%
-#   mutate(depth0 = ifelse(ID == S126,
-#                          25,
-#                          32),
-#          depth1 = ifelse(ID == S214,
-#                          32,
-#                          35)) %>%
-#   summarise(`new.%C` = sum(`%C`*(depth1-depth0)/10),
-#             `new.%N` = sum(`%N`*(depth1-depth0)/10),
-#             new.d13C = sum(d13C*(depth1-depth0)/10),
-#             new.d15N = sum(d15N*(depth1-depth0)/10)) %>% # average by depth rather than stock (mass/soil core area) because bulk.density only available for 25-35 as a whole
-#   mutate(depth = '25-35',
-#          new.depth0 = 25,
-#          new.depth1 = 35)
+avg_cn_4_2_17 <- cn_17_v2 %>%
+  filter(ID == 'S126' | ID == 'S214') %>%
+  mutate(depth0 = ifelse(ID == 'S126',
+                         25,
+                         32),
+         depth1 = ifelse(ID == 'S214',
+                         32,
+                         35),
+         `well#` = '4-2.17') %>%
+  group_by(`well#`) %>%
+  summarise(`new.%C` = sum(`%C`*(depth1-depth0)/10),
+            `new.%N` = sum(`%N`*(depth1-depth0)/10),
+            new.d13C = sum(d13C*(depth1-depth0)/10),
+            new.d15N = sum(d15N*(depth1-depth0)/10)) %>% # average by depth rather than stock (mass/soil core area) because bulk.density only available for 25-35 as a whole
+  mutate(depth = '25-35') %>%
+  ungroup()
 
 # replace incorrect depth value in core 5-6
 soil_17 <- soil_17 %>%
@@ -80,8 +106,8 @@ soil_17_v2 <- soil_17 %>%
                                   `well#` == '4-2.17' & depth == '32-35')), 
             by = c('well#', 'depth', 'depth0', 'depth1')) %>%
   full_join(avg_ash_4_2_17, by = c('well#', 'depth')) %>%
-  left_join(cn_17, by = 'ID') %>% # change to join with filter(cn_17_v2, !(ID == S126 | ID == S214))
-  # full_join(avg_cn_4_2_17, by = c('ID', 'depth')) %>%
+  left_join(filter(cn_17_v2, !(ID == 'S126' | ID == 'S214')), by = 'ID') %>%
+  full_join(avg_cn_4_2_17, by = c('well#', 'depth')) %>%
   mutate(depth0 = ifelse(!is.na(depth0),
                          depth0,
                          new.depth0),
@@ -92,19 +118,19 @@ soil_17_v2 <- soil_17 %>%
          moisture = Moisture*1000, # to match Cesar's units of g/kg
          ash = ifelse(!is.na(ash),
                       ash,
-                      new.ash)) %>% # , (remove %>% and add in comma when all data are incorporated)
-         # `%C` = ifelse(!is.na(`%C`),
-         #                `%C`,
-         #                `new.%C`),
-         # `%N` = ifelse(!is.na(`%N`),
-         #                `%N`,
-         #                `new.%N`),
-         # d13C = ifelse(!is.na(d13C),
-         #                d13C,
-         #                new.d13C),
-         # d15N = ifelse(!is.na(d15N),
-         #               d15N,
-         #               new.d15N)) %>% # move the averaged data for 4-2.17 25-35 into the right columns
+                      new.ash), # , (remove %>% and add in comma when all data are incorporated)
+         `%C` = ifelse(!is.na(`%C`),
+                        `%C`,
+                        `new.%C`),
+         `%N` = ifelse(!is.na(`%N`),
+                        `%N`,
+                        `new.%N`),
+         d13C = ifelse(!is.na(d13C),
+                        d13C,
+                        new.d13C),
+         d15N = ifelse(!is.na(d15N),
+                       d15N,
+                       new.d15N)) %>% # move the averaged data for 4-2.17 25-35 into the right columns
   select(-c(new.depth0, new.depth1, new.ash)) %>% # , `new.%C`, `new.%N`, new.d13C), new.d15N) %>% (remove %>% and add in the rest when all data are incorporated)
   group_by(Fence, `well#`) %>%
   arrange(Fence, `well#`, depth0) %>%
@@ -349,7 +375,9 @@ soil_17_final <- soil_17_v2 %>%
   group_by(year, block, fence, plot, treatment) %>%
   filter(!all(is.na(stock))) %>%
   select(-stock) %>%
-  mutate(CtoN = C/N,
+  mutate(C = C*10,
+         N = N*10,
+         CtoN = C/N,
          soil.stock = bulk.density*(depth1 - depth0)*10, # g/cm^3 * cm * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
          ash.stock = ash*bulk.density*(depth1 - depth0)/100, # g ash/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2
          C.stock = C*bulk.density*(depth1 - depth0)/100, # g C/kg soil * g soil/cm^3 soil * cm * 1 kg/1000 g * 1 kg/1000 g * 10,000 cm^2/m^2 = kg/m^2,
@@ -365,6 +393,36 @@ soil_09_17 <- soil_09_13 %>%
   select(year, block, fence, plot, treatment, depth.cat, depth0, depth1, moisture, bulk.density, ash, C, N, CtoN, delta13C, 
          delta15N, soil.stock, ash.stock, C.stock , N.stock, cu.soil.stock, cu.ash.stock, cu.C.stock, cu.N.stock) %>%
   rbind.data.frame(soil_17_final)
+
+# plot to check for anomalous values
+soil_09_17_summary <- soil_09_17 %>%
+  group_by(year, treatment) %>%
+  summarise(mean.C = mean(C, na.rm = TRUE),
+            se.C = sd(C, na.rm = TRUE)/sqrt(n()),
+            mean.N = mean(N, na.rm = TRUE),
+            se.N = sd(N, na.rm = TRUE)/sqrt(n()),
+            mean.d13C = mean(delta13C, na.rm = TRUE),
+            se.d13C = sd(delta13C, na.rm = TRUE)/sqrt(n()),
+            mean.d15N = mean(delta15N, na.rm = TRUE),
+            se.d15N = sd(delta15N, na.rm = TRUE)/sqrt(n()))
+  
+ggplot(filter(soil_09_17, C > 0), aes(x = as.factor(year), y = C)) +
+  geom_point() +
+  facet_grid(.~treatment)
+
+view(filter(soil_09_17, C > 470))
+
+ggplot(soil_09_17, aes(x = as.factor(year), y = N)) +
+  geom_point() +
+  facet_grid(.~treatment)
+
+ggplot(soil_09_17, aes(x = as.factor(year), y = delta13C)) +
+  geom_point() +
+  facet_grid(.~treatment)
+
+ggplot(soil_09_17, aes(x = as.factor(year), y = delta15N)) +
+  geom_point() +
+  facet_grid(.~treatment)
 
 # remember to save to server when final copy is ready
 # write.csv(soil_09_17, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv', row.names = FALSE) 

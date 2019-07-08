@@ -10,25 +10,44 @@ library(readxl)
 
 # Load data
 # most of the points are in this file
-RTK_Points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/INCOMPLETE_EML_GPS_Points/EML_All_Points_To_Measure_correct.shp") %>%
+RTK_Points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/INCOMPLETE_EML_GPS_Points/EML_GPS_Points.shp") %>%
   st_zm() %>%
   filter(Type != 'Tower')
-spcsak4 <- st_crs(RTK_Points) # this is SPCSAK4
+nad83_11 <- st_crs(RTK_Points) # this is SPCSAK4
 
-# A few points from Fay's 2008/2009 EC Tower survey need to be added (the transects of thaw depth at different scales)
-ec2008 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/eddy_tower_all_points/ec_all_points_2008.xlsx') %>%
-  st_as_sf(coords = c('east', 'north'), crs = 32606) %>%
-  st_transform(spcsak4) %>%
-  mutate(POINTNM = ifelse(site - as.integer(site) == 0,
-                          paste('Tower', as.integer(site), sep = '_'),
-                          paste('Tower', site, sep = '_')),
-         Type = 'Tower',
-         Grid_Num = NA) %>%
-  select(POINTNM, Type, Grid_Num)
-# st_write(ec2008, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/eddy_tower_all_points/ec_all_points_2008_spcsak4.shp')
+# tower 2008
+ec2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/TowerFootprint_2008_2009/tower2008.shp') %>%
+  st_transform(crs = nad83_11) %>%
+  st_zm() %>%
+  cbind.data.frame(st_coordinates(.)) %>%
+  st_as_sf() %>%
+  mutate(Lat = X,
+         Long = Y) %>%
+  select(-X, -Y)
+
+# need to incorporate the points which I added by hand in ArcMap to the the data frame (START HERE NEXT TIME)
+temp <- ec2008 %>%
+  filter(flag == 0) %>%
+  select(id, Lat, Long) %>%
+  left_join(filter(ec2008, flag != 0), by = 'id') %>%
+  mutate(Lat = ifelse(Lat == 0,
+                      ))
+
+# # A few points from Fay's 2008/2009 EC Tower survey need to be added (the transects of thaw depth at different scales)
+# ec2008 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/eddy_tower_all_points/ec_all_points_2008.xlsx') %>%
+#   st_as_sf(coords = c('east', 'north'), crs = 32606) %>%
+#   st_transform(spcsak4) %>%
+#   mutate(POINTNM = ifelse(site - as.integer(site) == 0,
+#                           paste('Tower', as.integer(site), sep = '_'),
+#                           paste('Tower', site, sep = '_')),
+#          Type = 'Tower',
+#          Grid_Num = NA) %>%
+#   select(POINTNM, Type, Grid_Num)
+# # st_write(ec2008, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/eddy_tower_all_points/ec_all_points_2008_spcsak4.shp')
 
 # FDBM points need to be added
 fdbm <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2016_SPCSAK4.shp') %>%
+  st_transform(crs = nad83_11) %>%
   st_zm() %>%
   filter(Type == 'FDBM') %>%
   mutate(Grid_Num = NA) %>%
