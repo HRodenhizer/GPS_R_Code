@@ -18,17 +18,15 @@ soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/S
 soil_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 Soils_processing data sheet_3_8_18.xlsx',
                       sheet = 3) %>%
   filter(ID != 'S213') %>%
-  mutate(ID = seq(1, nrow(soil_17)), sep = '',
+  mutate(ID = seq(1, nrow(.)), sep = '',
          ID = ifelse(ID >= 17,
                      paste('S', ID + 1, sep = ''),
                      paste('S', ID, sep = '')))
 ash_17 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/Ash_Mass_Data_2017.xlsx')
 # this will end up being a bunch of files
-cn_17_1 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/2017 CiPHER soil cores _CN data raw_tray one.xlsx',
+cn_17_1 <- read_excel('Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2017/190405_2017 CiPEHR soil cores.xlsx',
                     sheet = 2) %>%
-  select(1:7) %>%
-  mutate(`%C` = `%C real`,
-         d13C = d13C__1) %>%
+  select(1:5) %>%
   select(ID = `Final Result`, `%N`, `%C`, d15N, d13C)
   
 
@@ -158,10 +156,10 @@ split_layers <- soil_17_v2 %>%
   filter(depth0 < 15) %>%
   group_by(year, block, fence, plot, treatment) %>%
   filter(length(depth0) > 1) %>%
-  filter(!(fence == 3 & plot == 6 | fence == 6 & plot == 1)) %>%
-  summarise(new.depth0 = first(depth0),
-            new.depth1 = last(depth1),
-            stock = sum(stock*(depth1 - depth0))/(last(depth1) - first(depth0)),
+  filter(!(fence == 3 & plot == 6)) %>%
+  summarise(new.depth0 = min(depth0),
+            new.depth1 = max(depth1),
+            new.stock = sum(stock*(depth1 - depth0))/(max(depth1) - min(depth0)),
             moisture = sum(moisture*(stock))/(sum(stock)),
             bulk.density = sum(bulk.density*(stock))/(sum(stock)),
             ash = sum(ash*(stock))/(sum(stock)),
@@ -170,14 +168,16 @@ split_layers <- soil_17_v2 %>%
             delta13C = sum(delta13C*(stock))/(sum(stock)),
             delta15N = sum(delta15N*(stock))/(sum(stock))) %>%
   mutate(depth.cat = paste(new.depth0, new.depth1, sep = '-')) %>%
-  select(year, block, fence, plot, treatment, depth.cat, depth0 = new.depth0, depth1 = new.depth1, stock, moisture, bulk.density, 
+  select(year, block, fence, plot, treatment, depth.cat, depth0 = new.depth0, depth1 = new.depth1, stock = new.stock, moisture, bulk.density, 
          ash, C, N, delta13C, delta15N)
+
+#  | fence == 6 & plot == 1 <- this was filtering with 3-6, but I don't know why
 
 # separate layers which have depths slightly offset from the desired depths
 uneven_layers <- soil_17_v2 %>%
   filter(!(depth0 %in% depth0_values) | 
            !(depth1 %in% depth1_values)) %>%
-  filter(depth1 > 15 | fence == 3 & plot == 6 & depth0 == 6.5 | fence == 4 & plot == 8 | fence == 5 & plot == 6 | fence == 6 & plot == 1 | fence == 6 & plot == 8) %>%
+  filter(depth1 > 15 | fence == 3 & plot == 6 & depth0 == 6.5 | fence == 5 & plot == 6 | fence == 6 & plot == 8) %>%
   mutate(new.depth.cat = NA,
          new.depth0 = NA,
          new.depth1 = NA,
@@ -408,9 +408,10 @@ soil_09_17_summary <- soil_09_17 %>%
   
 ggplot(filter(soil_09_17, C > 0), aes(x = as.factor(year), y = C)) +
   geom_point() +
+  geom_text(data = filter(soil_09_17, C > 500), aes(label = paste(fence, plot, depth.cat, sep = '-')), position = position_jitter(width = 3), hjust = 1.5) +
   facet_grid(.~treatment)
 
-view(filter(soil_09_17, C > 470))
+view(filter(soil_09_17, C > 500))
 
 ggplot(soil_09_17, aes(x = as.factor(year), y = N)) +
   geom_point() +
@@ -418,6 +419,7 @@ ggplot(soil_09_17, aes(x = as.factor(year), y = N)) +
 
 ggplot(soil_09_17, aes(x = as.factor(year), y = delta13C)) +
   geom_point() +
+  geom_text(data = filter(soil_09_17, delta13C < -29), aes(label = paste(fence, plot, depth.cat, sep = '-')), position = position_jitter(width = 3), hjust = 1.5) +
   facet_grid(.~treatment)
 
 ggplot(soil_09_17, aes(x = as.factor(year), y = delta15N)) +
