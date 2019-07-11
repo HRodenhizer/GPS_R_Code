@@ -123,6 +123,10 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, amount, soil.prop, goal, go
 ####################################################################################################################################
 
 ### determine goal ash and soil amounts and prep data frame for ash/soil normalization of alt ######################################
+
+### I need to use SALT to calculate the height lost due to ice loss, because using the ash normalized alt introduces the issue of variable soil moisture impacting the results!
+
+
 # prep alt data for joining to soil core data
 alt <- ALTsub %>%
   select(year, fence, plot, treatment, ALT) %>%
@@ -133,9 +137,9 @@ alt <- ALTsub %>%
   summarise(mean.ALT = mean(ALT, na.rm = TRUE),
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n()))
 
-# select first and last years, average duplicate cores from the same fence/treatment, and join ALT data
+# select 2009, 2013, and 2017, average duplicate cores from the same fence/treatment, and join ALT data
 soil_09_17 <- soil %>%
-  filter(year == min(year) | year == max(year)) %>%
+  filter(year == 2009 | year == 2013 | year == 2017) %>%
   filter(!is.na(moisture)) %>%
   group_by(year, block, fence, treatment, depth0, depth1) %>%
   summarise_at(vars(moisture:cu.N.stock), mean, na.rm = TRUE) %>%
@@ -158,6 +162,11 @@ alt_ash <- soil_09_17 %>%
                                cu.soil.stock - soil.stock*(depth1 + mean.ALT)/(depth1-depth0),
                                cu.soil.stock + soil.stock*(-mean.ALT - depth1)/(depth1-depth0)))
 
+alt_ash_2013 <- alt_ash %>%
+  filter(year == 2013) %>%
+  ungroup() %>%
+  select(block, fence, treatment, mean.ALT.ash.2013 = mean.ALT.ash, mean.ALT.soil.2013 = mean.ALT.soil)
+
 alt_ash_2017 <- alt_ash %>%
   filter(year == 2017) %>%
   ungroup() %>%
@@ -166,8 +175,9 @@ alt_ash_2017 <- alt_ash %>%
 goals <- alt_ash %>%
   filter(year == 2009) %>%
   rename(mean.ALT.ash.2009 = mean.ALT.ash, mean.ALT.soil.2009 = mean.ALT.soil) %>%
+  left_join(alt_ash_2013, by = c('block', 'fence', 'treatment')) %>%
   left_join(alt_ash_2017, by = c('block', 'fence', 'treatment')) %>%
-  select(year, block, fence, treatment, mean.ALT.ash.2009, mean.ALT.soil.2009, mean.ALT.ash.2017, mean.ALT.soil.2017) %>%
+  select(year, block, fence, treatment, mean.ALT.ash.2009:mean.ALT.soil.2017) %>%
   gather(key = type, value = ALT.norm, mean.ALT.ash.2009:mean.ALT.soil.2017) %>%
   mutate(type = str_sub(type, 10, -1)) %>%
   separate(type, into = c('type', 'alt.year')) %>%
@@ -176,7 +186,8 @@ goals <- alt_ash %>%
   ungroup() %>%
   mutate(alt.year = as.numeric(alt.year),
          goal.id = group_indices(., block, fence, treatment)) %>%
-  filter(!(fence == 1 & treatment == 'c'))
+  filter(!(fence == 1 & treatment == 'c')) %>%
+  mutate(goals.ash.lwr = insert(ash.alt[c(TRUE, TRUE, FALSE)], ats = seq(1, 21, 2), values = 0))
 
 goals.ash.df <- goals %>%
   arrange(ash.alt)
@@ -185,10 +196,10 @@ goals.soil.df <- goals %>%
   arrange(soil.alt)
 
 goals.ash <- c(goals.ash.df$ash.alt)
-goals.ash.lwr <- insert(goals.ash[c(TRUE, FALSE)], ats = seq(1, 11), values = 0)
+goals.ash.lwr <- insert(goals.ash[c(TRUE, TRUE, FALSE)], ats = seq(1, 21, 2), values = 0)
 goal.id.ash <- c(goals.ash.df$goal.id)
 goals.soil <- c(goals.soil.df$soil.alt)
-goals.soil.lwr <- insert(goals.soil[c(TRUE, FALSE)], ats = seq(1, 11), values = 0)
+goals.soil.lwr <- insert(goals.soil[c(TRUE, TRUE, FALSE)], ats = seq(1, 21, 2), values = 0)
 goal.id.soil <- c(goals.soil.df$goal.id)
 
 # join alt_ash to soil data set
