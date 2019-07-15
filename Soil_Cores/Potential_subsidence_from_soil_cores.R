@@ -26,6 +26,7 @@ soil <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/
 # C/N (unitless)
 # delta13C, delta15N (per mil)
 # x.stock (stocks of soil, N, C, etc.), cu.x.stock (cumulative stocks) (kg/m^2)
+###
 
 # read in water well location data and subsidence data for 2013
 water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
@@ -108,7 +109,6 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, new.depth0, new.depth1, bul
 ####################################################################################################################################
 
 ### determine volume of water to subsidence adjusted ALT in each year ##############################################################
-
 # prep alt data for joining to soil core data
 alt <- ALTsub %>%
   select(year, fence, plot, treatment, ALT.corrected) %>%
@@ -148,6 +148,7 @@ moisture_loss <- moisture %>%
   group_by(block, fence, treatment) %>%
   mutate(depth0 = new.depth0,
          depth1 = new.depth1,
+         height = new.depth1 - new.depth0,
          alt.id = new.alt.id,
          alt.year = new.alt.year) %>%
   ungroup() %>%
@@ -155,9 +156,12 @@ moisture_loss <- moisture %>%
   filter(core.id == alt.id) %>%
   select(-core.id, -alt.id) %>%
   group_by(block, fence, treatment) %>%
-  mutate(moisture.height = moisture*soil.stock/100^3, # output in m
-         cumulative.moisture.height = cumsum(moisture.height))
+  mutate(moisture.height = moisture*soil.stock*(1/10^6), # output in m
+         cumulative.moisture.height = cumsum(moisture.height)) %>%
+  arrange(alt.year, fence, treatment)
 
-
+mean.sub <- moisture_loss %>%
+  group_by(alt.year, treatment) %>%
+  summarise(mean.sub = mean(cumulative.moisture.height, na.rm = TRUE))
 ####################################################################################################################################
 

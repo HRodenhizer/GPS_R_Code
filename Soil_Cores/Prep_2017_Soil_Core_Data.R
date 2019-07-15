@@ -61,6 +61,12 @@ cn_17_v2 <- cn_17_1 %>% # might need to remove %C and replace with %C real for s
             d13C = mean(d13C)) %>%
   ungroup()
 
+data <- which(str_detect(cn_17_v2$ID, pattern = '^S[:digit:]'))
+cn_17_data <- cn_17_v2[data,]
+cn_17_no_duplicates <- cn_17_data$ID %>%
+  unique()
+  
+
 # this layer got split into two for ash and CN analysis and needs to be averaged into one layer before joining with soil data
 avg_ash_4_2_17 <- ash_17_v2 %>%
   filter(`well#` == '4-2.17' & depth == '25-32' | `well#` == '4-2.17' & depth == '32-35') %>%
