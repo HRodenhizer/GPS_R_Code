@@ -10,13 +10,15 @@ library(readxl)
 
 # Load data
 # most of the points are in this file
-RTK_Points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/INCOMPLETE_EML_GPS_Points/EML_GPS_Points.shp") %>%
+RTK_Points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/INCOMPLETE_EML_GPS_Points/EML_All_Points_To_Measure_Correct.shp") %>%
   st_zm() %>%
   filter(Type != 'Tower')
 nad83_11 <- st_crs(RTK_Points) # this is SPCSAK4
 
 # tower 2008
-ec2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/TowerFootprint_2008_2009/tower2008.shp') %>%
+ec2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/TowerFootprint_2008_2009/tower2008.shp')
+utm <- st_crs(ec2008)
+ec2008 <- ec2008 %>%
   st_transform(crs = nad83_11) %>%
   st_zm() %>%
   cbind.data.frame(st_coordinates(.)) %>%
@@ -26,12 +28,55 @@ ec2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS
   select(-X, -Y)
 
 # need to incorporate the points which I added by hand in ArcMap to the the data frame (START HERE NEXT TIME)
-temp <- ec2008 %>%
+ec2008_df <- ec2008 %>%
+  select(id, flag, Lat, Long) %>%
+  st_drop_geometry()
+
+ec2008 <- ec2008_df %>%
   filter(flag == 0) %>%
   select(id, Lat, Long) %>%
-  left_join(filter(ec2008, flag != 0), by = 'id') %>%
-  mutate(Lat = ifelse(Lat == 0,
-                      ))
+  right_join(ec2008_df, by = 'id') %>%
+  mutate(Lat = ifelse(is.na(Lat.y),
+                      Lat.x,
+                      Lat.y),
+         Long = ifelse(is.na(Long.y),
+                       Long.x,
+                       Long.y)) %>%
+  select(id, Lat, Long) %>%
+  st_as_sf(coords = c('Lat', 'Long'),
+           crs = nad83_11) %>%
+  mutate(POINTNM = paste('ec', id, sep = ''),
+         Measure_Type = 'Tower',
+         Plot_Type = '') %>%
+  select(POINTNM, Measure_Type, Plot_Type, Num = id) %>%
+  arrange(Num)
+
+plot(ec2008)
+
+# AJ's points
+AJ_points <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/RTK_Points/ForHeidi.xlsx')
+
+missing_utm_points <- AJ_points %>%
+  filter(is.na(north)) %>%
+  st_as_sf(coords = c('long', 'lat'),
+           crs = 4326) %>%
+  st_transform(crs = utm) %>%
+  st_coordinates()
+
+AJ_points <- AJ_points %>%
+  mutate(north = ifelse(is.na(north),
+                        missing_utm_points[2],
+                        north),
+         east = ifelse(is.na(east),
+                       missing_utm_points[1],
+                       east),
+         Measure_Type = 'Other',
+         Plot_Type = '',
+         Num = seq(1, 6)) %>%
+  st_as_sf(coords = c('east', 'north'),
+           crs = utm) %>%
+  st_transform(crs = nad83_11) %>%
+  select(POINTNM = name, Measure_Type, Plot_Type, Num)
 
 # # A few points from Fay's 2008/2009 EC Tower survey need to be added (the transects of thaw depth at different scales)
 # ec2008 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/eddy_tower_all_points/ec_all_points_2008.xlsx') %>%
@@ -50,92 +95,71 @@ fdbm <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/A
   st_transform(crs = nad83_11) %>%
   st_zm() %>%
   filter(Type == 'FDBM') %>%
-  mutate(Grid_Num = NA) %>%
-  select(POINTNM = Name, Type, Grid_Num)
+  mutate(Num = NA,
+         Measure_Type = 'Plot',
+         Plot_Type = 'FDBM') %>%
+  select(POINTNM = Name, Measure_Type, Plot_Type, Num)
 
-plot(ec2008)
-
-# Join shapefiles and reshape data
-RTK_Points_2 <- RTK_Points %>%
-  rbind.data.frame(ec2008, fdbm) %>%
-  filter(POINTNM != is.na(POINTNM)) %>%
-  mutate(POINTNM = ifelse(Type == 'grad',
-                          paste(str_sub(POINTNM, start = 1, end = 4), str_sub(POINTNM, start = 5, end = -1), sep = '_'),
-                          ifelse(Type == 'Water Well',
-                                 paste(str_sub(POINTNM, start = 3, end = 3), '.', str_sub(POINTNM, start = 4, end = -1), str_sub(POINTNM, start = 1, end = 2), sep = ''),
-                                 ifelse(Type == 'FDBM' & POINTNM != 'hobo' & POINTNM != 'hobo_side',
-                                        paste(str_sub(POINTNM, start = 1, end = 1), '.', str_sub(POINTNM, start = 2, end = -1), sep = ''),
-                                        as.character(POINTNM)))),
-         ID = ifelse(Type == 'A',
-                     Grid_Num + 10000,
-                     ifelse(Type == 'B',
-                            Grid_Num + 11000,
-                            ifelse(Type == 'C',
-                                   Grid_Num + 12000,
-                                   ifelse(Type == 'Tower',
-                                          as.numeric(str_sub(POINTNM, start = 7, end = -1)) + 14000,
-                                          ifelse(Type == 'grad',
-                                                 as.numeric(str_sub(POINTNM, start = 6, end = -1)) + 15000,
-                                                 NA)))))) %>%
-  mutate(POINTNM = ifelse(Type == 'Flux' | Type == 'Gas Well' | Type == 'Water Well' | Type == 'FDBM' & POINTNM != 'hobo' & POINTNM != 'hobo_side',
-                          str_replace(POINTNM, pattern = fixed('.'), replacement = fixed('_')),
-                          POINTNM),
-         POINTNM = ifelse(Type == 'Flux' | Type == 'Gas Well',
-                          paste(str_sub(POINTNM, start = 1, end = -2), str_sub(POINTNM, start = -1, end = -1), sep = '_'),
-                          ifelse(Type == 'Water Well',
-                                 paste(str_sub(POINTNM, start = 1, end = -3), str_sub(POINTNM, start = -2, end = -1), sep = '_'),
-                                 ifelse(Type == 'FDBM' & POINTNM == 'hobo',
-                                        'hobo_top',
-                                        POINTNM))))
-plotorder <- RTK_Points_2 %>%
+# Order the plots, water wells, and FDBM
+plotorder <- RTK_Points %>%
+  rename(Num = Grid_Num) %>%
   filter(Type == 'Flux' | Type == 'Gas Well' | Type == 'Water Well' | Type == 'FDBM') %>%
+  mutate(Measure_Type = 'Plot',
+         Plot_Type = Type) %>%
+  select(-Type) %>%
+  rbind.data.frame(fdbm) %>%
+  mutate(POINTNM = ifelse(Plot_Type == 'Flux' | Plot_Type == 'Gas Well',
+                          paste(str_sub(str_replace(POINTNM, pattern = '\\.', replacement = '_'), start = 1, end = 3), 
+                                '_',
+                                str_sub(POINTNM, start = -1)),
+                          ifelse(Plot_Type == 'Water Well',
+                                 paste(str_sub(POINTNM, start = 3, end = 3), '_', str_sub(POINTNM, start = 4), '_ww', sep = ''),
+                                 ifelse(POINTNM != 'hobo' & POINTNM != 'hobo_side',
+                                        paste(str_sub(POINTNM, start = 1, end = 1), '_', str_sub(POINTNM, start = 2), sep = ''),
+                                        ifelse(POINTNM == 'hobo',
+                                               paste(9, '_', POINTNM, '_top', sep = ''),
+                                               paste(9, '_', POINTNM)))))) %>%
   separate(POINTNM, into = c('fence', 'plot', 'type'), sep = '_', remove = FALSE) %>%
-  mutate(plot = ifelse(Type == 'Water Well',
-                       paste('w', plot, sep = ''),
-                       ifelse(Type == 'FDBM',
-                              paste('fdbm', plot, sep = ''),
-                              plot)),
-         plot = factor(plot, levels = c('1', '2', '3', '4', 'B', 'wBn', 'wBs', 'w1', 'w2', 'w2.5', 'fdbmC', '5', '6', '7', '8', 'C', 'D', 'wDn', 'wDs', 'w3', 'w4', 'w4.5', 'fdbmW'))) %>%
-  arrange(fence, plot) %>%
-  mutate(ID = seq(13001, 13206)) %>%
-  select(POINTNM, Type, Grid_Num, ID)
+  mutate(plot = str_trim(plot),
+         treatment = ifelse(plot == 'B' | plot == 'Bn' | plot == 'Bs',
+                            'c',
+                            ifelse(Plot_Type != 'FDBM' & (plot == 'C' | plot == 'D' | plot == 'Dn' | plot == 'Ds'),
+                                   'w',
+                                   ifelse((Plot_Type == 'Flux' | Plot_Type == 'Gas Well') & as.numeric(plot) <= 4,
+                                          'c',
+                                          ifelse((Plot_Type == 'Flux' | Plot_Type == 'Gas Well') & as.numeric(plot) >= 4,
+                                                 'w',
+                                                 ifelse(Plot_Type == 'Water Well' & as.numeric(plot) <= 2.5,
+                                                        'c',
+                                                        ifelse(Plot_Type == 'Water Well' & as.numeric(plot) >= 2.5,
+                                                               'w',
+                                                               ifelse(Plot_Type == 'FDBM' & plot == 'C',
+                                                                      'c',
+                                                                      'w'))))))),
+         Plot_Other = ifelse(Plot_Type == 'Flux' | Plot_Type == 'Gas Well',
+                             1,
+                             2)) %>%
+  arrange(fence, treatment, Plot_Other, plot, Plot_Type) %>%
+  mutate(Num = seq(1, nrow(plotorder))) %>%
+  select(POINTNM, Measure_Type, Plot_Type, Num)
 
-RTK_Points_3 <- RTK_Points_2 %>%
-  filter(Type != 'Flux' & Type != 'Gas Well' & Type != 'Water Well' & Type != 'FDBM') %>%
-  rbind.data.frame(plotorder) %>%
-  arrange(ID) %>%
-  mutate(Type = ifelse(Type == 'A',
-                       'a',
-                       ifelse(Type == 'B',
-                              'b',
-                              ifelse(Type == 'C',
-                                     'c',
-                                     ifelse(Type == 'FDBM',
-                                            'fdbm',
-                                            ifelse(Type == 'Flux',
-                                                   'flux',
-                                                   ifelse(Type == 'Gas Well',
-                                                          'gw',
-                                                          ifelse(Type == 'Tower',
-                                                                 'tower',
-                                                                 ifelse(Type == 'Water Well',
-                                                                        'ww',
-                                                                        as.character(Type)))))))))) %>%
-  st_transform(crs = 4269)
+# join all the data
+RTK_Points_2 <- RTK_Points %>%
+  filter(!(Type == 'Flux' | Type == 'Gas Well' | Type == 'Water Well' | Type == 'FDBM')) %>%
+  mutate(POINTNM = ifelse(Type == 'grad',
+                          paste(str_sub(POINTNM, start = 1, end = 4), '_', str_sub(POINTNM, start = 5), sep = ''),
+                          as.character(POINTNM))) %>%
+  separate(POINTNM, into = c('Type2', 'Num'), remove = FALSE) %>%
+  mutate(Num = as.numeric(Num),
+         Plot_Type = '') %>%
+  select(POINTNM, Measure_Type = Type, Plot_Type, Num) %>%
+  arrange(Measure_Type, Num) %>%
+  rbind.data.frame(plotorder, ec2008, AJ_points) %>%
+  mutate(Measure_Type = factor(Measure_Type, levels = c('A', 'B', 'C', 'Plot', 'grad', 'Tower'))) %>%
+  arrange(Measure_Type) %>%
+  mutate(ID = seq(1, nrow(RTK_Points_2))) %>%
+  select(ID, POINTNM, Measure_Type, Plot_Type, Num)
 
-# old renaming code that could be useful at some point
-# ,
-# Name = ifelse(Type == 'a' | Type == 'b' | Type == 'c' | Type == 'grad' | Type == 'tower',
-#               str_c(Type, TID, sep = '_'),
-#               ifelse(Type == 'flux' | Type == 'gw',
-#                      str_replace(str_c(Type, str_sub(POINTNM, start = 1, end = 3), sep = '_'), pattern=fixed('.'), replacement=fixed('_')),
-#                      ifelse(Type == 'fdbm',
-#                             str_c(Type, POINTNM, sep = '_'),
-#                             str_c(Type, str_sub(POINTNM, start = 3, end = 3), str_sub(POINTNM, start = 4), sep = '_'))))
-
-
-# for some reason arcmap doesn't recognize the coordinate system when rtk_points_2 gets exported with the original cs.
-# The last line of code above transforms to NAD83 (which gets recognized as a GRS80 in ArcMap, but needs to be defined (define projection in ArcMap)
-# as NAD83, and then you can project to SPCS AK 4).
-
-st_write(RTK_Points_3, dsn = 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/RTK_Points/RTK_Points_NAD83.shp')
+plot(RTK_Points_2)
+  
+st_write(RTK_Points_2, dsn = 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Protocol/RTK_Points/RTK_Points_NAD83_201908.shp')
