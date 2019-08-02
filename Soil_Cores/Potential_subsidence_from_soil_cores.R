@@ -53,8 +53,6 @@ water_wells <- water_wells %>%
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", full.names = TRUE, pattern = '^.*.tif$')
 # make a list of elevation raster stacks for each block
 Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
-# Load ALT
-ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', header = TRUE, sep = '\t')
 
 rm(filenames)
 ####################################################################################################################################
@@ -143,7 +141,30 @@ soil_stock <- soil_09 %>%
   do({ data.frame( soil.stock = avg.soil.prop(.$depth0, .$depth1, new.depth0, new.depth1, .$bulk.density, .$soil.stock))}) %>%
   ungroup()
 
+core.area <- 45.3646/10^4
+
 moisture_loss <- moisture %>%
+  cbind.data.frame(select(soil_stock, soil.stock)) %>%
+  group_by(block, fence, treatment) %>%
+  mutate(depth0 = new.depth0,
+         depth1 = new.depth1,
+         height = new.depth1 - new.depth0,
+         alt.id = new.alt.id,
+         alt.year = new.alt.year) %>%
+  ungroup() %>%
+  mutate(core.id = group_indices(., fence, treatment)) %>%
+  filter(core.id == alt.id) %>%
+  select(-core.id, -alt.id) %>%
+  group_by(block, fence, treatment) %>%
+  mutate(moisture.height = moisture/1000*soil.stock*height*core.area/(1 - moisture/1000)*(1/1000)*(1/core.area), # output in m
+         cumulative.moisture.height = cumsum(moisture.height)) %>%
+  arrange(alt.year, fence, treatment)
+
+### test units
+test <- moisture %>%
+  mutate(moisture = 1000)
+
+test_moisture_loss <- test %>%
   cbind.data.frame(select(soil_stock, soil.stock)) %>%
   group_by(block, fence, treatment) %>%
   mutate(depth0 = new.depth0,
@@ -165,3 +186,68 @@ mean.sub <- moisture_loss %>%
   summarise(mean.sub = mean(cumulative.moisture.height, na.rm = TRUE))
 ####################################################################################################################################
 
+### Compare potential subsidence to measured subsidence at that water well's location ##############################################
+# water wells taken in 2009
+ids <- c('1.2', '1.3', '2.1', '2.4', '3.2', '3.4', '4.1', '4.3', '5.2', '5.3', '6.2', '6.4')
+
+ww2009 <- water_wells %>%
+  mutate(well.id = paste(fence, well, sep = '.'),
+         block = ifelse(block == 'a',
+                        1,
+                        ifelse(block == 'b',
+                               2,
+                               3))) %>%
+  filter(well.id %in% ids) %>%
+  mutate(treatment = ifelse(well <= 2.5,
+                            'c',
+                            'w'))
+
+# extract subsidence at each of the 2009 water wells
+blocks <- list(1, 2, 3)
+sub13_18 <- map(Elevation, ~ brick(.x[[5]]-.x[[1]], .x[[10]]-.x[[1]]))
+ww_sub <- map2_dfr(sub13_18, 
+               blocks, 
+               ~ raster::extract(.x, 
+                                 as(filter(ww2009, block == .y), 
+                                    'Spatial')) %>%
+                 as.data.frame() %>%
+                 rename(sub13 = layer.1,
+                        sub18 = layer.2) %>%
+                 mutate(block = .y)
+               ) %>%
+  mutate(well.id = ids) %>%
+  gather(key = alt.year, value = sub, sub13:sub18) %>%
+  mutate(alt.year = ifelse(alt.year == 'sub13',
+                           2013,
+                           2018))
+
+# add location to the potential subsidence data frame and compare with gps subsidence
+moisture_loss_2 <- moisture_loss %>%
+  left_join(ww2009, by = c('block', 'fence', 'treatment')) %>%
+  st_as_sf() %>%
+  left_join(ww_sub, by = c('block', 'well.id', 'alt.year')) %>%
+  st_as_sf() %>%
+  mutate(diff = cumulative.moisture.height - sub*-1)
+
+avg_diff <- moisture_loss_2 %>%
+  st_drop_geometry() %>%
+  group_by(alt.year, treatment) %>%
+  summarise(difference = mean(diff, na.rm = TRUE))
+
+model <- lm(sub*-1 ~ cumulative.moisture.height, data = moisture_loss_2)
+summary(model)
+
+ggplot(moisture_loss_2, aes(x = cumulative.moisture.height, y = sub*-1, colour = as.factor(alt.year))) +
+  geom_point() +
+  geom_segment(x = min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE), 
+               y = model$coefficients[1] + model$coefficients[2]*min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
+               xend = max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
+               yend = model$coefficients[1] + model$coefficients[2]*max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
+               colour = 'black') +
+  scale_x_continuous(name = 'Moisture Height (2009-year indicated)') +
+  scale_y_continuous(name = 'GPS Subsidence (2009-year indicated)') +
+  annotate(geom = 'text', 
+           x = 1, 
+           y = 0.5, 
+           label = paste('y = ', round(model$coefficients[1], 2), ' + ', round(model$coefficients[2], 2), 'x', sep = ''))
+####################################################################################################################################
