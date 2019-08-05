@@ -49,8 +49,12 @@ coords <- st_coordinates(water_wells)
 water_wells <- water_wells %>%
   mutate(Easting = coords[,1],
          Northing = coords[,2])
+# Load ALT
+ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', 
+                     header = TRUE, sep = '\t')
 # find elevation files in directory
-filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", full.names = TRUE, pattern = '^.*.tif$')
+filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
+                        full.names = TRUE, pattern = '^.*.tif$')
 # make a list of elevation raster stacks for each block
 Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
 
@@ -72,7 +76,7 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, new.depth0, new.depth1, bul
     # determine the needed height from each old soil layer
     heights <- height[index.lwr:index.upr]
     if (length(heights) == 1) {
-      heights <- new.depth1 - new.depth0
+      heights <- (new.depth1 - new.depth0)/10
     } else {
     heights[1] <- (depth1[index.lwr] - new.depth0)/100
     heights[length(heights)] <- (new.depth1 - depth0[index.upr])/100
@@ -91,15 +95,67 @@ avg.soil.prop <- Vectorize(function( depth0, depth1, new.depth0, new.depth1, bul
     # determine the needed height from each old soil layer
     heights <- height[index.lwr:index.upr]
     if (length(heights) == 1) {
-      heights <- new.depth1 - new.depth0
+      heights <- (new.depth1 - new.depth0)/100
     } else {
-      heights[1] <- depth0[index.lwr] - new.depth0
-      heights[length(heights)] <- new.depth1 - depth0[index.upr]
+      heights[1] <- depth0[index.lwr] - new.depth0/100
+      heights[length(heights)] <- new.depth1 - depth0[index.upr]/100
     }
     
     # calculate weights based on the soil stock in the needed portion of each old soil layer
     weights <- bulk.density[index.lwr:index.upr]*heights
     prop <- sum(prior.prop * weights) / sum(weights)
+  }
+  
+  return(prop)
+}, c('new.depth0', 'new.depth1'))
+
+sum.soil.prop <- Vectorize(function( depth0, depth1, new.depth0, new.depth1, bulk.density, soil.prop ){
+  if( all( depth1 < new.depth0 )){    # if the core isn't deep enough to reach the starting depth of the desired layer
+    return(NA)
+  }
+  height <- (depth1 - depth0)/100
+  # calc avg bulk density of core between last and current goals
+  if ( any(depth1 >= new.depth1) ) {
+    index.lwr <- min(which(depth1 > new.depth0)) # layer where we reach the new starting depth
+    index.upr <- min(which(depth1 >= new.depth1)) # layer where we reach the new ending depth
+    prior.prop <- soil.prop[index.lwr:index.upr] # the values of the soil property that needs to be averaged
+    
+    # determine the needed height from each old soil layer
+    heights <- height[index.lwr:index.upr]
+    weights <- heights
+    if (length(heights) == 1) {
+      weights <- (new.depth1 - new.depth0)/100
+    } else {
+      weights[1] <- (depth1[index.lwr] - new.depth0)/100
+      weights[length(weights)] <- (new.depth1 - depth0[index.upr])/100
+    }
+    weights <- weights/heights
+    
+    # calculate weights based on the soil stock in the needed portion of each old soil layer
+    prop <- sum(prior.prop * weights)
+    
+  } else {
+    
+    index.lwr <- min(which(depth1 > new.depth0)) # layer where we reach the new starting depth
+    index.upr <- max( which( depth1 >= new.depth0) ) # last layer we have
+    prior.prop <- soil.prop[index.lwr:index.upr] # the values of the soil property that needs to be averaged
+    print(c(new.depth0, new.depth1))
+    # determine the needed height from each old soil layer
+    heights <- height[index.lwr:index.upr]
+    weights <- heights
+    print(paste('heights = ', heights, sep = ''))
+    if (length(heights) == 1) {
+      weights <- (new.depth1 - new.depth0)/100
+    } else {
+      weights[1] <- (depth1[index.lwr] - new.depth0)/100
+      weights[length(weights)] <- (new.depth1 - depth0[index.upr])/100
+    }
+    print(paste('weights = ', weights, sep = ''))
+    weights <- weights/heights
+    print(paste('new.weights = ', weights, sep = ''))
+    
+    # calculate weights based on the soil stock in the needed portion of each old soil layer
+    prop <- sum(prior.prop * weights)
   }
   
   return(prop)
@@ -138,7 +194,7 @@ moisture <- soil_09 %>%
   ungroup()
 
 soil_stock <- soil_09 %>%
-  do({ data.frame( soil.stock = avg.soil.prop(.$depth0, .$depth1, new.depth0, new.depth1, .$bulk.density, .$soil.stock))}) %>%
+  do({ data.frame( soil.stock = sum.soil.prop(.$depth0, .$depth1, new.depth0, new.depth1, .$bulk.density, .$soil.stock))}) %>%
   ungroup()
 
 core.area <- 45.3646/10^4
@@ -150,40 +206,27 @@ moisture_loss <- moisture %>%
          depth1 = new.depth1,
          height = new.depth1 - new.depth0,
          alt.id = new.alt.id,
-         alt.year = new.alt.year) %>%
+         alt.year = new.alt.year,
+         bulk.density = soil.stock/(height/100)*10^-3) %>% # g/cm^3 output
   ungroup() %>%
   mutate(core.id = group_indices(., fence, treatment)) %>%
   filter(core.id == alt.id) %>%
   select(-core.id, -alt.id) %>%
   group_by(block, fence, treatment) %>%
-  mutate(moisture.height = moisture/1000*soil.stock*height*core.area/(1 - moisture/1000)*(1/1000)*(1/core.area), # output in m
+  mutate(moisture.height = (moisture/1000*bulk.density*height/0.92)/(1 - moisture/1000)*10^-2, # output in m
          cumulative.moisture.height = cumsum(moisture.height)) %>%
   arrange(alt.year, fence, treatment)
 
-### test units
-test <- moisture %>%
-  mutate(moisture = 1000)
+ggplot(moisture_loss, aes(x = height/100, y = moisture.height)) +
+  geom_point()
 
-test_moisture_loss <- test %>%
-  cbind.data.frame(select(soil_stock, soil.stock)) %>%
-  group_by(block, fence, treatment) %>%
-  mutate(depth0 = new.depth0,
-         depth1 = new.depth1,
-         height = new.depth1 - new.depth0,
-         alt.id = new.alt.id,
-         alt.year = new.alt.year) %>%
-  ungroup() %>%
-  mutate(core.id = group_indices(., fence, treatment)) %>%
-  filter(core.id == alt.id) %>%
-  select(-core.id, -alt.id) %>%
-  group_by(block, fence, treatment) %>%
-  mutate(moisture.height = moisture*soil.stock*(1/10^6), # output in m
-         cumulative.moisture.height = cumsum(moisture.height)) %>%
-  arrange(alt.year, fence, treatment)
+ggplot(moisture_loss, aes(x = moisture/1000, y = moisture.height)) +
+  geom_point()
 
 mean.sub <- moisture_loss %>%
   group_by(alt.year, treatment) %>%
-  summarise(mean.sub = mean(cumulative.moisture.height, na.rm = TRUE))
+  summarise(mean.ice.sub = mean(cumulative.moisture.height, na.rm = TRUE),
+            se.ice.sub = sd(cumulative.moisture.height, na.rm = TRUE)/sqrt(n()))
 ####################################################################################################################################
 
 ### Compare potential subsidence to measured subsidence at that water well's location ##############################################
@@ -229,25 +272,36 @@ moisture_loss_2 <- moisture_loss %>%
   st_as_sf() %>%
   mutate(diff = cumulative.moisture.height - sub*-1)
 
-avg_diff <- moisture_loss_2 %>%
+avg_moisture_loss <- moisture_loss_2 %>%
   st_drop_geometry() %>%
   group_by(alt.year, treatment) %>%
-  summarise(difference = mean(diff, na.rm = TRUE))
+  summarise(difference = mean(diff, na.rm = TRUE),
+            mean.ice.sub = mean(cumulative.moisture.height, na.rm = TRUE),
+            se.ice.sub = sd(cumulative.moisture.height, na.rm = TRUE)/sqrt(n()),
+            mean.gps.sub = mean(sub, na.rm = TRUE),
+            se.ice.sub = sd(sub, na.rm = TRUE)/sqrt(n()))
 
 model <- lm(sub*-1 ~ cumulative.moisture.height, data = moisture_loss_2)
 summary(model)
 
-ggplot(moisture_loss_2, aes(x = cumulative.moisture.height, y = sub*-1, colour = as.factor(alt.year))) +
+ggplot(moisture_loss_2, aes(x = cumulative.moisture.height, y = sub*-1, colour = treatment, shape = as.factor(alt.year))) +
   geom_point() +
   geom_segment(x = min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE), 
                y = model$coefficients[1] + model$coefficients[2]*min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
                xend = max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
                yend = model$coefficients[1] + model$coefficients[2]*max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
                colour = 'black') +
-  scale_x_continuous(name = 'Moisture Height (2009-year indicated)') +
-  scale_y_continuous(name = 'GPS Subsidence (2009-year indicated)') +
+  scale_x_continuous(name = 'Potential Subsidence from Ice Loss (m)') +
+  scale_y_continuous(name = 'Measured Subsidence (m)') +
   annotate(geom = 'text', 
-           x = 1, 
-           y = 0.5, 
-           label = paste('y = ', round(model$coefficients[1], 2), ' + ', round(model$coefficients[2], 2), 'x', sep = ''))
+           x = 0.45, 
+           y = -0.05, 
+           label = paste('y = ', round(model$coefficients[1], 2), ' + ', round(model$coefficients[2], 2), 'x', sep = ''),
+           size = 3) +
+  scale_colour_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  scale_shape_discrete(name = '') +
+  theme_few() +
+  theme(text = element_text(size = 8))
 ####################################################################################################################################
