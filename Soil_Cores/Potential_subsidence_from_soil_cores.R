@@ -305,3 +305,37 @@ ggplot(moisture_loss_2, aes(x = cumulative.moisture.height, y = sub*-1, colour =
   theme_few() +
   theme(text = element_text(size = 8))
 ####################################################################################################################################
+
+### Estimate subsidence from C loss ################################################################################################
+C.core <- 1500 # g C/m^2 yr from Plaza et al. 2019
+CO2.flux <- 755 # g C/m^2 yr from Plaza et al. 2019
+CH4.flux <- 1.2 # g C/m^2 yr from Taylor et al. 2018
+C.flux <- CO2.flux+CH4.flux
+avg.bd <- soil %>%
+  filter(depth.cat == '15-25' | depth.cat == '25-35') %>%
+  select(bulk.density) %>%
+  summarise(mean.bd = mean(bulk.density, na.rm = TRUE)) %>%
+  as.numeric()*10^6 # g/m^3
+
+avg.C.stock <- soil %>%
+  filter(depth.cat == '15-25' | depth.cat == '25-35') %>%
+  select(C) %>%
+  summarise(mean.C = mean(C, na.rm = TRUE)) %>%
+  as.numeric()*10^-3 # g/m^3
+
+upr <- C.core/avg.C.stock*1/avg.bd # m/yr
+lwr <- C.flux/avg.C.stock*1/avg.bd # m/yr
+upr.9 <- upr*9
+lwr.9 <- lwr*9
+
+avg.sub.2018 <- moisture_loss_2 %>%
+  st_drop_geometry() %>%
+  ungroup() %>%
+  filter(alt.year == 2018) %>%
+  select(sub) %>%
+  summarise(mean.sub = mean(sub, na.rm = TRUE)*-1) %>%
+  as.numeric()
+
+upr.percent <- upr.9/avg.sub.2018
+lwr.percent <- lwr.9/avg.sub.2018
+####################################################################################################################################
