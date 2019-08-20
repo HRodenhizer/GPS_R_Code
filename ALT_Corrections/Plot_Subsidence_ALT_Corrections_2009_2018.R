@@ -427,7 +427,9 @@ subpointsC <- subpoints2 %>%
                                                      3,
                                                      4)))),
          fencegroup = factor(block2:fence2),
-         wholeplot = factor(block2:fence2:treatment2))
+         wholeplot = factor(block2:fence2:treatment2),
+         full.treatment = factor(as.character(full.treatment),
+                                 levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
 
 ## Run the model with a different slope for each fence/treatment combination
 # model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
@@ -487,7 +489,7 @@ summary(model3)
 AICc(model3, model2, model1)
 
 
-# check model residuals of model2
+# check model residuals of model3
 # look at residuals
 model3.resid <- resid(model3)
 model3.fitted <- fitted(model3)
@@ -514,7 +516,6 @@ r.squaredGLMM(subsidence_model)
 
 # save model
 # saveRDS(subsidence_model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
-
 subsidence_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
 
 # calculate confidence intervals to look at fixed effects
@@ -522,32 +523,50 @@ subsidence_model_ci <- extract_ci(subsidence_model)
 # write.csv(subsidence_model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv', row.names = FALSE)
 subsidence_model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv')
 
-predInt <- predictInterval(subsidence_model, newdata = subpointsC, n.sims = 1000,
-                           returnSims = TRUE, level = 0.95, ignore.fixed.terms = c(intercept, treatment3))
+r2 <- r.squaredGLMM(subsidence_model)
 
-subpoints.fit <- subpointsC %>%
-  cbind.data.frame(predInt) %>%
-  dplyr::select(-geometry)
-# write.csv(subpoints.fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
+# make confidence interval data frame for graphing
+ConfData <- expand.grid(time = 0:9,
+                        treatment3 = as.factor(1:4))
 
+myStats <- function(model){
+  out <- predict( model, newdata=ConfData, re.form=~0 )
+  return(out)
+}
+
+bootObj <- bootMer(subsidence_model, FUN=myStats, nsim = 1000)
+ConfData <- cbind(ConfData, predict(subsidence_model, newdata=ConfData, re.form=~0 )) %>%
+  cbind(confint( bootObj,  level=0.95 ))
+colnames(ConfData) <- c('time', 'treatment3', 'fit', 'lwr', 'upr')
+ConfData <- ConfData %>%
+  mutate(treatment = ifelse(treatment3 == 1,
+                            'Control',
+                            ifelse(treatment3 == 2,
+                                   'Air Warming',
+                                   ifelse(treatment3 == 3,
+                                          'Soil Warming',
+                                          'Air + Soil Warming'))))
+# write.csv(ConfData, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
+
+subsidence_model_table <- data.frame(Response = c('Subsidence', rep(NA, 3)),
+                                   `Full Model` = c('Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
+                                   `Final Variables` = c('Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
+                                   Coeficient = c(subsidence_model_ci$coefs[1], subsidence_model_ci$coefs[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `Min CI` = c(subsidence_model_ci$min[1], subsidence_model_ci$min[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `Max CI` = c(subsidence_model_ci$max[1], subsidence_model_ci$max[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `R2 Marginal` = c(r2[1], rep(NA, 3)),
+                                   `R2 Conditional` = c(r2[2], rep(NA, 3)),
+                                   AIC = c(AIC(subsidence_model), rep(NA, 3)))
+# write.csv(subsidence_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/subsidence_model_table.csv', row.names = FALSE)
 ############################################################################################################
 
 ################################### Graphs #################################################################
 # data needed for graphs
-model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
-subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv')
-model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
-subpoints.ci <- data.frame(time = rep(seq(0, 9, length.out = 2), 2),
-                           treatment = c(rep('Control', 2), rep('Warming', 2))) %>%
-  mutate(lwr = ifelse(treatment == 'Control',
-                      model2_ci$min[1] + model2_ci$min[2]*time,
-                      model2_ci$min[1] + model2_ci$min[4] + (model2_ci$min[2] + model2_ci$min[3])*time),
-         upr = ifelse(treatment == 'Control',
-                      model2_ci$max[1] + model2_ci$max[2]*time,
-                      model2_ci$max[1] + model2_ci$max[4] + (model2_ci$max[2] + model2_ci$max[3])*time),
-         fit = ifelse(treatment == 'Control',
-                      model2_ci$coefs[1] + model2_ci$coefs[2]*time,
-                      model2_ci$coefs[1] + model2_ci$coefs[4] + (model2_ci$coefs[2] + model2_ci$coefs[3])*time))
+model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
+subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv') %>%
+  mutate(treatment = factor(as.character(treatment),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
+model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv')
 model2_r2 <- r.squaredGLMM(model2)
 
 # plots
@@ -579,42 +598,43 @@ g1
 # ggsave(plot = g1, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Plot_Subsidence_Ratio_Corrected_2018.pdf", height = 8, width = 12)
 
 # treatment level subsidence - How do you add confidence intervals for a mixed effects model?
-mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour = treatment)) +
-  geom_ribbon(data = subpoints.ci, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
+mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = full.treatment)) +
+  geom_ribbon(data = subpoints.fit, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
   geom_point(alpha = 0.5) +
-  geom_segment (mapping=aes(x = 0, 
-                            y = model2_ci$coefs[1], 
-                            xend = 9, 
-                            yend = model2_ci$coefs[1] + model2_ci$coefs[2]*9), 
-                colour = '#006699') +
-  geom_segment (mapping=aes(x = 0, 
-                            y = model2_ci$coefs[1] + model2_ci$coefs[4], 
-                            xend = 9, 
-                            yend = model2_ci$coefs[1] + model2_ci$coefs[4] + (model2_ci$coefs[2] + model2_ci$coefs[3])*9), 
-                colour = '#990000') +
-  scale_color_manual(values = c("#006699", "#990000"),
+  geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
+  scale_color_manual(values = c("#006699", '#009900', "#990000", '#330000'),
                      labels = c(paste('Control:  y = ', 
                                       round(model2_ci$coefs[1]*100, 2), 
-                                      ' - ', 
+                                      'x', 
+                                      sep = ''), 
+                                paste('Air Warming:  y = ', 
                                       round(model2_ci$coefs[2]*-100, 2), 
                                       'x', 
                                       sep = ''), 
-                                paste('Warming:  y = ', 
-                                      round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
-                                      ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 
+                                paste('Soil Warming:  y = ', 
+                                      round(model2_ci$coefs[3]*-100, 2), 
+                                      'x', 
+                                      sep = ''),
+                                paste('Air + Soil Warming:  y = ', 
+                                      round(model2_ci$coefs[4]*-100, 2), 
                                       'x', 
                                       sep = '')),
                      name = '') +
-  scale_fill_manual(values = c("#006699", "#990000"),
+  scale_fill_manual(values = c("#006699", '#009900', "#990000", '#330000'),
                     labels = c(paste('Control:  y = ', 
                                      round(model2_ci$coefs[1]*100, 2), 
-                                     ' - ', 
+                                     'x', 
+                                     sep = ''), 
+                               paste('Air Warming:  y = ', 
                                      round(model2_ci$coefs[2]*-100, 2), 
                                      'x', 
                                      sep = ''), 
-                               paste('Warming:  y = ', 
-                                     round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
-                                     ' - ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*-100, 2), 
+                               paste('Soil Warming:  y = ', 
+                                     round(model2_ci$coefs[3]*-100, 2), 
+                                     'x', 
+                                     sep = ''),
+                               paste('Air + Soil Warming:  y = ', 
+                                     round(model2_ci$coefs[4]*-100, 2), 
                                      'x', 
                                      sep = '')),
                      name = '') +

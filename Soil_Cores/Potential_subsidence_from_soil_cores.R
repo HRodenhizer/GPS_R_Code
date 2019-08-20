@@ -229,6 +229,34 @@ mean.sub <- moisture_loss %>%
             se.ice.sub = sd(cumulative.moisture.height, na.rm = TRUE)/sqrt(n()))
 ####################################################################################################################################
 
+######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
+#Extract the coefficients for the fixed effects from your model, make a dataframe with them called model
+extract_ci <- function(x) {coefs<-fixef(x) 
+modeldf<-as.data.frame(coefs)
+#calculate confidence intervals; merge fixed effects and ci into one dataframe
+ci <- confint(x,method="boot",boot.type="norm",level=0.95,nsim=1000)
+modelci<-merge(ci,modeldf,by="row.names",all.x=F)
+#rename colnames so that they make sense and remove symbols
+colnames(modelci)<-c("term","min","max","coefs")
+return (modelci)}
+
+# graph CI
+graph_ci <- function(ci,figtitle,model) {ggplot(ci,aes(x=names,y=coefs))+
+    geom_errorbar(aes(ymin=min,ymax=max),width=0,size=1)+
+    geom_point(aes(size=2))+
+    labs (title = paste(figtitle, ", AIC:", round(AIC(model),2), sep =" ") , x = "Fixed effect", y = "Effect size and 95% CI") +
+    guides(size=F,shape=F)+
+    theme_bw()+
+    theme(axis.text.x=element_text(size=18),
+          axis.title.x=element_text(size=26),
+          axis.title.y=element_text(size=26,vjust=1),
+          axis.text.y=element_text(size=22),
+          panel.grid.minor=element_blank(),
+          panel.grid.major.x=element_blank())+
+    geom_hline(yintercept=0)+
+    coord_flip() } 
+####################################################################################################################################
+
 ### Compare potential subsidence to measured subsidence at that water well's location ##############################################
 # water wells taken in 2009
 ids <- c('1.2', '1.3', '2.1', '2.4', '3.2', '3.4', '4.1', '4.3', '5.2', '5.3', '6.2', '6.4')
@@ -270,7 +298,19 @@ moisture_loss_2 <- moisture_loss %>%
   st_as_sf() %>%
   left_join(ww_sub, by = c('block', 'well.id', 'alt.year')) %>%
   st_as_sf() %>%
-  mutate(diff = cumulative.moisture.height - sub*-1)
+  ungroup() %>%
+  mutate(cumulative.moisture.height = cumulative.moisture.height*-1,
+         diff = cumulative.moisture.height - sub,
+         time = alt.year-2009,
+         block2 = as.factor(block),
+         fence2 = as.factor(ifelse(fence == 1 | fence == 3 | fence == 5,
+                                   1,
+                                   2)),
+         treatment2 = factor(ifelse(treatment == 'c',
+                                       1,
+                                       2)),
+         fencegroup = factor(block2:fence2),
+         wholeplot = factor(block2:fence2:treatment2))
 
 avg_moisture_loss <- moisture_loss_2 %>%
   st_drop_geometry() %>%
@@ -281,29 +321,121 @@ avg_moisture_loss <- moisture_loss_2 %>%
             mean.gps.sub = mean(sub, na.rm = TRUE),
             se.ice.sub = sd(sub, na.rm = TRUE)/sqrt(n()))
 
-model <- lm(sub*-1 ~ cumulative.moisture.height, data = moisture_loss_2)
-summary(model)
+model1 <- lmer(sub ~ cumulative.moisture.height + treatment2 +
+                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+               data = moisture_loss_2,
+               control=lmerControl(check.conv.singular="warning"))
 
-ggplot(moisture_loss_2, aes(x = cumulative.moisture.height, y = sub*-1, colour = treatment, shape = as.factor(alt.year))) +
+summary(model1)
+
+model2 <- lmer(sub ~ cumulative.moisture.height +
+                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+               data = moisture_loss_2,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model2)
+
+AICc(model1, model2)
+
+# check model residuals of model2
+# look at residuals
+model2.resid <- resid(model2)
+model2.fitted <- fitted(model2)
+model2.sqrt <- sqrt(abs(resid(model2)))
+
+# graph
+par(mfrow=c(2,2), mar = c(4,4,3,2))
+plot(model2.fitted, model2.resid, main='resid, model2')
+plot(model2.fitted, model2.sqrt, main='sqrt resid, model2')
+qqnorm(model2.resid, main = 'model2')
+qqline(model2.resid)
+par(mfrow=c(1,1))
+
+hist(subpointsC$subsidence)
+
+# re-run better model with REML = TRUE
+model <- lmer(sub ~ cumulative.moisture.height +
+                (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
+              data = moisture_loss_2,
+              control=lmerControl(check.conv.singular="warning"))
+summary(model)
+r.squared <- r.squaredGLMM(model)
+
+# save model
+# saveRDS(model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
+
+model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
+
+# calculate confidence intervals to look at fixed effects
+model_ci <- extract_ci(model)
+# write.csv(model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv', row.names = FALSE)
+model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv')
+
+predInt <- predictInterval(model, newdata = moisture_loss_2, n.sims = 1000,
+                           returnSims = TRUE, level = 0.95)
+
+moisture_loss_fit <- moisture_loss_2 %>%
+  cbind.data.frame(predInt) %>%
+  dplyr::select(-geometry)
+# write.csv(moisture_loss_fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
+
+# make confidence interval data frame for graphing
+ConfData <- data.frame(cumulative.moisture.height = seq(min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE),
+                                                        max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE),
+                                                        length.out = 10))
+myStats <- function(model){
+  out <- predict( model, newdata=ConfData, re.form=~0 )
+  return(out)
+}
+
+bootObj <- bootMer(model, FUN=myStats, nsim = 1000)
+ConfData <-  cbind( ConfData, confint( bootObj,  level=0.95 ))
+
+colnames(ConfData) <- c('cumulative.moisture.height', 'lwr', 'upr')
+
+ice.loss <- ggplot(moisture_loss_fit, aes(x = cumulative.moisture.height, y = sub, colour = treatment)) +
+  geom_ribbon(data = ConfData, aes(x = cumulative.moisture.height, ymin = lwr, ymax = upr), inherit.aes = FALSE, alpha = 0.3) +
   geom_point() +
-  geom_segment(x = min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE), 
-               y = model$coefficients[1] + model$coefficients[2]*min(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
-               xend = max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
-               yend = model$coefficients[1] + model$coefficients[2]*max(moisture_loss_2$cumulative.moisture.height, na.rm = TRUE),
+  geom_segment(aes(x = min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
+                   y = model_ci$coefs[1] + model_ci$coefs[2]*min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
+                   xend = max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
+                   yend = model_ci$coefs[1] + model_ci$coefs[2]*max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE)),
                colour = 'black') +
-  scale_x_continuous(name = 'Potential Subsidence from Ice Loss (m)') +
+  scale_x_continuous(name = 'Ice Height (m)') +
   scale_y_continuous(name = 'Measured Subsidence (m)') +
   annotate(geom = 'text', 
-           x = 0.45, 
-           y = -0.05, 
-           label = paste('y = ', round(model$coefficients[1], 2), ' + ', round(model$coefficients[2], 2), 'x', sep = ''),
-           size = 3) +
+           x = -0.4, 
+           y = 0.05, 
+           label = paste('y = ', round(model_ci$coefs[1], 3), ' + ', round(model_ci$coefs[2], 3), 'x', sep = ''),
+           size = 2.5) +
+  annotate(geom = 'text',
+           x = -0.46,
+           y = 0.01,
+           label = paste0("~R[c]^2==", round(r.squared[2], 2)), 
+           parse = TRUE, 
+           size = 2.5) +
   scale_colour_manual(values = c("#006699", "#990000"),
-                     labels = c('Control', 'Warming'),
-                     name = '') +
+                      labels = c('Control', 'Warming'),
+                      name = '') +
   scale_shape_discrete(name = '') +
   theme_few() +
-  theme(text = element_text(size = 8))
+  theme(text = element_text(size = 8)) +
+  coord_fixed()
+ice.loss
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.jpg', ice.loss, width = 95, height = 100, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.pdf', ice.loss, width = 95, height = 100, units = 'mm')
+
+ice_loss_model_table <- data.frame(Response = c('Subsidence', NA),
+                             `Full Model` = c('Ice Height', 'Soil Warming'),
+                             `Final Variables` = c('Intercept', 'Ice Height'),
+                             Coeficient = c(model_ci$coefs[1], model_ci$coefs[2]),
+                             `Min CI` = c(model_ci$min[1], model_ci$min[2]),
+                             `Max CI` = c(model_ci$max[1], model_ci$max[2]),
+                             `R2 Marginal` = c(r.squared[1], NA),
+                             `R2 Conditional` = c(r.squared[2], NA),
+                             AIC = c(AIC(model), NA))
+# write.csv(ice_loss_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_model_table.csv', row.names = FALSE)
 ####################################################################################################################################
 
 ### Estimate subsidence from C loss ################################################################################################
@@ -312,13 +444,13 @@ CO2.flux <- 755 # g C/m^2 yr from Plaza et al. 2019
 CH4.flux <- 1.2 # g C/m^2 yr from Taylor et al. 2018
 C.flux <- CO2.flux+CH4.flux
 avg.bd <- soil %>%
-  filter(depth.cat == '15-25' | depth.cat == '25-35') %>%
+  filter(depth.cat == '35-45' | depth.cat == '45-55') %>%
   select(bulk.density) %>%
   summarise(mean.bd = mean(bulk.density, na.rm = TRUE)) %>%
   as.numeric()*10^6 # g/m^3
 
 avg.C.stock <- soil %>%
-  filter(depth.cat == '15-25' | depth.cat == '25-35') %>%
+  filter(depth.cat == '35-45' | depth.cat == '45-55') %>%
   select(C) %>%
   summarise(mean.C = mean(C, na.rm = TRUE)) %>%
   as.numeric()*10^-3 # g/m^3
