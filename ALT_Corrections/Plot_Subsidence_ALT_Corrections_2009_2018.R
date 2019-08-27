@@ -15,6 +15,7 @@ library(ggfortify)
 library(MuMIn)
 library(merTools)
 library(tidyverse)
+library(emmeans)
 ############################################################################################################
 
 ### Load data ##############################################################################################
@@ -513,6 +514,8 @@ subsidence_model <- lmer(subsidence ~ 0 + time:treatment3  +
 
 summary(subsidence_model)
 r.squaredGLMM(subsidence_model)
+LetterResults <- emmeans(subsidence_model, ~ treatment3) %>% cld(Letters=letters)
+LetterResults
 
 # save model
 # saveRDS(subsidence_model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
@@ -549,8 +552,8 @@ ConfData <- ConfData %>%
 # write.csv(ConfData, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
 
 subsidence_model_table <- data.frame(Response = c('Subsidence', rep(NA, 3)),
-                                   `Full Model` = c('Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
-                                   `Final Variables` = c('Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
+                                   `Full Model` = c('Year*Treatment', rep(NA, 3)),
+                                   `Final Variables` = c('Control*Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
                                    Coeficient = c(subsidence_model_ci$coefs[1], subsidence_model_ci$coefs[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
                                    `Min CI` = c(subsidence_model_ci$min[1], subsidence_model_ci$min[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
                                    `Max CI` = c(subsidence_model_ci$max[1], subsidence_model_ci$max[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
@@ -566,7 +569,8 @@ model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS
 subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv') %>%
   mutate(treatment = factor(as.character(treatment),
                             levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
-model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv')
+model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv') %>%
+  mutate(diff = coefs - min)
 model2_r2 <- r.squaredGLMM(model2)
 
 # plots
@@ -604,44 +608,44 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
   geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
   scale_color_manual(values = c("#006699", '#009900', "#990000", '#330000'),
                      labels = c(paste('Control:  y = ', 
-                                      round(model2_ci$coefs[1]*100, 2), 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
                                       'x', 
                                       sep = ''), 
                                 paste('Air Warming:  y = ', 
-                                      round(model2_ci$coefs[2]*-100, 2), 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
                                       'x', 
                                       sep = ''), 
                                 paste('Soil Warming:  y = ', 
-                                      round(model2_ci$coefs[3]*-100, 2), 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
                                       'x', 
                                       sep = ''),
                                 paste('Air + Soil Warming:  y = ', 
-                                      round(model2_ci$coefs[4]*-100, 2), 
+                                      round(model2_ci$coefs[1]*100, 2), 
                                       'x', 
                                       sep = '')),
                      name = '') +
   scale_fill_manual(values = c("#006699", '#009900', "#990000", '#330000'),
                     labels = c(paste('Control:  y = ', 
-                                     round(model2_ci$coefs[1]*100, 2), 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
                                      'x', 
                                      sep = ''), 
                                paste('Air Warming:  y = ', 
-                                     round(model2_ci$coefs[2]*-100, 2), 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
                                      'x', 
                                      sep = ''), 
                                paste('Soil Warming:  y = ', 
-                                     round(model2_ci$coefs[3]*-100, 2), 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
                                      'x', 
                                      sep = ''),
                                paste('Air + Soil Warming:  y = ', 
-                                     round(model2_ci$coefs[4]*-100, 2), 
+                                     round(model2_ci$coefs[1]*100, 2), 
                                      'x', 
                                      sep = '')),
                      name = '') +
   scale_x_continuous(breaks = seq(0, 9),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
-  scale_y_continuous(name = 'Subsidence (cm)',
+  scale_y_continuous(name = '\u0394 Elevation',
                      breaks = seq(-0.9, 0.1, .1),
                      labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
@@ -657,7 +661,7 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
 
 mixed.model.graph
 # ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.jpg", width = 95, height = 115, units = 'mm')
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.pdf", width = 95, height = 115, units = 'mm')
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.pdf", width = 95, height = 115, units = 'mm', device=cairo_pdf)
 
 # ALT vs. subsidence adjusted ALT by plot
 g2 <- ggplot(ALTsubgraph, aes(x = year, y = ALT, color = Measurement_Type)) +
@@ -788,8 +792,10 @@ color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Sa
 linetypes <- c('Permafrost' = 'solid', 'Unsaturated Active Layer' = 'solid', 'Saturated Active Layer' = 'solid', 'Subsidence' = 'dashed')
 
 # Cross section of soil for control and warming
+treat_labels <- c(Control = 'Control',
+                  Warming = 'Soil Warming')
 g4 <- ggplot(ALTsub.summary, aes(x = year)) +
-  facet_grid(. ~ treatment) +
+  facet_grid(. ~ treatment, labeller = labeller(treatment = treat_labels)) +
   geom_ribbon(aes(ymin = mean.subsidence, ymax = 0, fill = 'Subsidence', linetype = 'Subsidence'), 
               color = "black") +
   geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost', linetype = 'Permafrost'), 
