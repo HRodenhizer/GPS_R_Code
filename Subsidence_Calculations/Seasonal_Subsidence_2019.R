@@ -11,6 +11,7 @@ library(ggthemes)
 library(viridis)
 library(gridExtra)
 library(RStoolbox)
+library(automap)
 ##############################################################################################################
 
 ### Load data ################################################################################################
@@ -134,41 +135,127 @@ distance_df <- map2_dfr(distance_raster,
 ### Join elevation change and point distance dataframes ######################################################
 elev_change_df <- elev_change_df %>%
   full_join(distance_df, by = c('x', 'y', 'block', 'collection')) %>%
-  select(x, y, block, collection, dElev, point.dist)
+  group_by(block) %>%
+  mutate(dElev.20 = ifelse(point.dist <= 0.2,
+                           dElev,
+                           NA),
+         dElev.10 = ifelse(point.dist <= 0.1,
+                           dElev,
+                           NA),
+         x.norm = round(x-min(x, na.rm = TRUE)),
+         y.norm = round(y-min(y, na.rm = TRUE)),
+         collection = factor(collection, levels = c('May2019', 'Aug2019'))) %>%
+  select(x, y, x.norm, y.norm, block, collection, dElev, dElev.10, dElev.20, point.dist)
 ##############################################################################################################
 
-# find the mean frost heave for each block for all cells, for all cells with gps points within 20 cm, 
-# and for all cells with gps points within 10 cm
-summary <- map_dfr(frost_heave_df, ~ summarise(.x, 
-                                           mean.d.elev = mean(d.elev, na.rm = TRUE),
-                                           mean.d.elev.2 = mean(d.elev.2, na.rm = TRUE),
-                                           mean.d.elev.1 = mean(d.elev.1, na.rm = TRUE)))
+### summarize the frost heave and seasonal subsidence ########################################################
+summary1 <- elev_change_df %>%
+  group_by(block, collection) %>%
+  summarise(mean.d.elev = mean(dElev, na.rm = TRUE),
+            mean.d.elev.20 = mean(dElev.20, na.rm = TRUE),
+            mean.d.elev.10 = mean(dElev.10, na.rm = TRUE))
 
-# map the frost heave with the distances between gps points for that cell overlaid
-titles <- list('A', 'B', 'C')
-walk2(frost_heave_df,
-     distance_list,
-     ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev)) +
-               geom_tile() +
-               geom_point(data = .y, aes(x = Easting, y = Northing, color = distance), inherit.aes = FALSE) +
-               geom_text(data = .y, aes(x = Easting, y = Northing, label = Name), size = 2, inherit.aes = FALSE) +
-               scale_color_viridis() +
-               ggtitle(.y$block)))
+summary2 <- summary1 %>%
+  group_by(collection) %>%
+  summarise(mean.d.elev = mean(mean.d.elev, na.rm = TRUE),
+            mean.d.elev.20 = mean(mean.d.elev.20, na.rm = TRUE),
+            mean.d.elev.10 = mean(mean.d.elev.10, na.rm = TRUE))
+##############################################################################################################
 
-# map the frost heave excluding cells with gps points over 20 cm apart
-maps <- frost_heave_df %>%
-  walk2(titles,
-      ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev.2)) +
-                geom_tile() +
-                scale_fill_viridis(name = expression(paste(Delta, ' Elevation')),
-                                   limits = c(-0.05, 0.2)) +
-                coord_fixed() +
-                theme_few() +
-                theme(axis.title = element_blank()) +
-                ggtitle(paste(.y))))
+### map the seasonal elevation changes at CiPEHR ############################################################
+facet_labels <- c(`a` = 'A',
+                  `b` = 'B',
+                  `c` = 'C',
+                  `May2019` = 'August 2018 - May 2019',
+                  `Aug2019` = 'May - August 2019')
+ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev)) +
+  geom_tile() +
+  scale_x_continuous(name = '') +
+  scale_y_continuous(name = '') +
+  scale_fill_viridis(name = expression(Delta*" Elevation (m)")) +
+  facet_grid(collection ~ block,
+             labeller = as_labeller(facet_labels)) +
+  theme_few() +
+  coord_fixed()
 
-fig <- grid.arrange(maps[[1]], maps[[2]], maps[[3]], ncol = 3)
-fig
+ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.20)) +
+  geom_tile() +
+  scale_x_continuous(name = '') +
+  scale_y_continuous(name = '') +
+  scale_fill_viridis(name = expression(Delta*" Elevation (m)")) +
+  facet_grid(collection ~ block,
+             labeller = as_labeller(facet_labels)) +
+  theme_few() +
+  coord_fixed()
+ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.10)) +
+  geom_tile() +
+  scale_x_continuous(name = '') +
+  scale_y_continuous(name = '') +
+  scale_fill_viridis(name = expression(Delta*" Elevation (m)")) +
+  facet_grid(collection ~ block,
+             labeller = as_labeller(facet_labels)) +
+  theme_few() +
+  coord_fixed()
 
+# # map the frost heave with the distances between gps points for that cell overlaid
+# titles <- list('A', 'B', 'C')
+# walk2(frost_heave_df,
+#      distance_list,
+#      ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev)) +
+#                geom_tile() +
+#                geom_point(data = .y, aes(x = Easting, y = Northing, color = distance), inherit.aes = FALSE) +
+#                geom_text(data = .y, aes(x = Easting, y = Northing, label = Name), size = 2, inherit.aes = FALSE) +
+#                scale_color_viridis() +
+#                ggtitle(.y$block)))
+# 
+# # map the frost heave excluding cells with gps points over 20 cm apart
+# maps <- frost_heave_df %>%
+#   walk2(titles,
+#       ~ print(ggplot(.x, aes(x = x, y = y, fill = d.elev.2)) +
+#                 geom_tile() +
+#                 scale_fill_viridis(name = expression(paste(Delta, ' Elevation')),
+#                                    limits = c(-0.05, 0.2)) +
+#                 coord_fixed() +
+#                 theme_few() +
+#                 theme(axis.title = element_blank()) +
+#                 ggtitle(paste(.y))))
+# 
+# fig <- grid.arrange(maps[[1]], maps[[2]], maps[[3]], ncol = 3)
+# fig
+# 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/frost_heave_2018_2019.jpg', fig, width = 8, height = 3)
+##############################################################################################################
+
+### krige elevation surfaces for the ec tower and calculate elevation change #################################
+tower <- list(Points052019, Points082019)
+
+tower_sp <- map(tower, ~ .x %>%
+                  filter(as.numeric(as.character(Name)) >= 14000) %>%
+                  st_zm() %>%
+                  as('Spatial'))
+
+
+x <- seq(min(tower_sp[[2]]@coords[,1]), max(tower_sp[[2]]@coords[,1]), length.out = (max(tower_sp[[2]]@coords[,1])-min(tower_sp[[2]]@coords[,1]))/10)
+y <- seq(min(tower_sp[[2]]@coords[,2]), max(tower_sp[[2]]@coords[,2]), length.out = (max(tower_sp[[2]]@coords[,2])-min(tower_sp[[2]]@coords[,2]))/10)
+grid <- expand.grid(x = x, y = y)
+gridded(grid) = ~x+y
+grid@proj4string<-CRS(st_crs(Points052019)$proj4string)
+plot(grid)
+
+tower_models <- map(
+  tower_sp,
+  ~autoKrige(Elevation~1, .x, grid)
+)
+
+tower_surfaces <- map(
+  tower_models,
+  ~ brick(.x$krige_output) %>%
+    mask(tower_sp[[2]]) # this masks to the individual cells with points in them
+)
+
+walk(tower_surfaces,
+     ~ plot(.x))
+
+seasonal_sub_ec <- subset(tower_surfaces[[2]], 1) - subset(tower_surfaces[[1]], 1)
+plot(seasonal_sub_ec)
 ##############################################################################################################
