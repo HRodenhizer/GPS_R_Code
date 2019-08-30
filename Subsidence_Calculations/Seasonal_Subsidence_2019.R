@@ -12,6 +12,7 @@ library(viridis)
 library(gridExtra)
 library(RStoolbox)
 library(automap)
+library(gstat)
 ##############################################################################################################
 
 ### Load data ################################################################################################
@@ -227,35 +228,131 @@ ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.10)) +
 ##############################################################################################################
 
 ### krige elevation surfaces for the ec tower and calculate elevation change #################################
-tower <- list(Points052019, Points082019)
+tower <- list(Points052019%>%
+                filter(as.numeric(as.character(Name)) >= 14000) %>%
+                st_zm() %>%
+                mutate(name2 = as.numeric(as.character(Name)) - 14000), 
+              Points082019%>%
+                filter(as.numeric(as.character(Name)) >= 14000) %>%
+                st_zm() %>%
+                mutate(name2 = as.numeric(as.character(Name)) - 14000))
 
-tower_sp <- map(tower, ~ .x %>%
-                  filter(as.numeric(as.character(Name)) >= 14000) %>%
-                  st_zm() %>%
+tower_sp <- map(tower, ~ .x  %>%
                   as('Spatial'))
 
 
-x <- seq(min(tower_sp[[2]]@coords[,1]), max(tower_sp[[2]]@coords[,1]), length.out = (max(tower_sp[[2]]@coords[,1])-min(tower_sp[[2]]@coords[,1]))/10)
-y <- seq(min(tower_sp[[2]]@coords[,2]), max(tower_sp[[2]]@coords[,2]), length.out = (max(tower_sp[[2]]@coords[,2])-min(tower_sp[[2]]@coords[,2]))/10)
+x <- seq(min(tower_sp[[2]]@coords[,1]-10), max(tower_sp[[2]]@coords[,1]+10), length.out = (max(tower_sp[[2]]@coords[,1]+10)-min(tower_sp[[2]]@coords[,1]-10))/10)
+y <- seq(min(tower_sp[[2]]@coords[,2]-10), max(tower_sp[[2]]@coords[,2]+10), length.out = (max(tower_sp[[2]]@coords[,2]+10)-min(tower_sp[[2]]@coords[,2]-10))/10)
 grid <- expand.grid(x = x, y = y)
 gridded(grid) = ~x+y
 grid@proj4string<-CRS(st_crs(Points052019)$proj4string)
+
+# make sure the points from both collections fit in the grid
 plot(grid)
+plot(tower_sp[[1]], add = TRUE, col = 'red')
+plot(grid)
+plot(tower_sp[[2]], add = TRUE, col = 'red')
 
-tower_models <- map(
-  tower_sp,
-  ~autoKrige(Elevation~1, .x, grid)
-)
+# krige the tower elevation surfaces
+#may
+may.vgm <- variogram(Elevation~Easting+Northing, tower_sp[[1]], alpha = c(0, 90)+45)
+vgm.anis = vgm(0.5, "Exp", 100, 0, anis =  c(135, 0.7))
+may.fit <- fit.variogram(may.vgm, model = vgm.anis)
+plot(may.vgm, may.fit)
 
-tower_surfaces <- map(
-  tower_models,
-  ~ brick(.x$krige_output) %>%
-    mask(tower_sp[[2]]) # this masks to the individual cells with points in them
-)
+may_model <-  krige(Elevation~1, tower_sp[[1]], grid, may.fit)
+may_raster <- raster(may_model)
+may_var <- raster(may_model[2])
+may_df <- may_raster %>%
+  as.data.frame()
+
+ggplot(tower[[1]]) +
+  geom_tile(data = may_raster, aes(x,y, fill = var1.pred), inherit.aes = FALSE) +
+  geom_sf(aes(colour = Elevation)) +
+  scale_colour_viridis("Elevation") +
+  ggtitle('May')
+
+#aug
+aug.vgm <- variogram(Elevation~Easting+Northing, tower_sp[[2]], alpha = c(0, 90)+45)
+vgm.anis = vgm(0.35, "Sph", 100, 0.5, anis =  c(135, 0.7))
+aug.fit <- fit.variogram(aug.vgm, model = vgm.anis)
+plot(aug.vgm, aug.fit)
+
+aug_model <-  krige(Elevation~1, tower_sp[[2]], grid, aug.fit)
+aug_raster <- raster(aug_model)
+aug_var <- raster(aug_model[2])
+aug_df <- aug_raster %>%
+  as.data.frame()
+
+ggplot(tower[[2]]) +
+  geom_tile(data = aug_raster, aes(x,y, fill = var1.pred), inherit.aes = FALSE) +
+  geom_sf(aes(colour = Elevation)) +
+  scale_colour_viridis("Elevation") +
+  ggtitle('Aug')
+
+# create a raster object to mask with
+ec_mask <- aug_var
+plot(ec_mask)
+ec_mask[ec_mask > 0.07] <- NA
+ec_mask[ec_mask <= 0.07] <- 1
+plot(ec_mask)
+plot(tower_sp[[1]], add = TRUE)
+
+may_raster <- may_raster %>%
+  mask(ec_mask)
+
+aug_raster <- aug_raster %>%
+  mask(ec_mask)
+
+tower_surfaces <- map(tower_surfaces,
+     ~ mask(.x, ec_mask))
 
 walk(tower_surfaces,
      ~ plot(.x))
 
-seasonal_sub_ec <- subset(tower_surfaces[[2]], 1) - subset(tower_surfaces[[1]], 1)
+seasonal_sub_ec <- aug_raster - may_raster
 plot(seasonal_sub_ec)
+sub_subset <- seasonal_sub_ec
+sub_subset[sub_subset > 0] <- NA
+plot(sub_subset)
+
+ggplot(tower[[1]], aes (x = Easting, y = Northing)) +
+  geom_point() +
+  geom_text(aes(label = name2), hjust = 1.1) +
+  geom_point(data = tower[[2]], aes(x = Easting, y = Northing), inherit.aes = FALSE, color = 'red') +
+  geom_text(data = tower[[2]], aes(x = Easting, y = Northing, label = name2), inherit.aes = FALSE, color = 'red')
+
+may_ec_renumber <- tower[[1]] %>%
+  mutate(name2 = ifelse(name2 <= 94,
+                        name2,
+                        ifelse(name2 >= 95 & name2 <= 96,
+                               name2 + 1,
+                               name2 + 2)))
+
+ggplot(may_ec_renumber, aes (x = Easting, y = Northing)) +
+  geom_point() +
+  geom_text(aes(label = name2), hjust = 1.1) +
+  geom_point(data = tower[[2]], aes(x = Easting, y = Northing), inherit.aes = FALSE, color = 'red') +
+  geom_text(data = tower[[2]], aes(x = Easting, y = Northing, label = name2), inherit.aes = FALSE, color = 'red')
+
+may_ec_subset <- may_ec_renumber %>%
+  filter(name2 <= 228)
+
+aug_ec_subset <- tower[[2]] %>%
+  filter(name2 <= 94 | name2 == 96 | name2 == 97 | name2 >= 99)
+
+ec_distances <- may_ec_subset %>%
+  cbind.data.frame(data.frame(point.dist = st_distance(may_ec_subset, aug_ec_subset, by_element = TRUE))) %>%
+  st_as_sf() %>%
+  select(name2, Easting, Northing, point.dist)
+
+ec_dist_sp <- ec_distances %>%
+  as('Spatial')
+
+ec_dist_model <- autoKrige(point.dist ~ 1, ec_dist_sp, grid)
+ec_dist_surface <- ec_dist_model$krige_output %>%
+  brick() %>%
+  mask(ec_mask)
+
+plot(ec_dist_surface)
 ##############################################################################################################
