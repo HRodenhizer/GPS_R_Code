@@ -9,12 +9,17 @@ library(sp)
 library(automap)
 library(raster)
 library(tidyverse)
+library(readxl)
 ######################################################################################################################
 
 ### Load Data ########################################################################################################
 points2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/TowerFootprint_2008_2009/tower2008.shp')
 points2017 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2017_SPCSAK4.shp')
 points2019 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_08_2019_SPCSAK4.shp')
+td2017 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2017 GPS/ALT_Measurements.xlsx')
+td2019 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2019 GPS/ec_tower_alt_20190810.xlsx')
+dtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTM_All/eml_dtm')
+test <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7085000_DTM.tif')
 ######################################################################################################################
 
 ### Standardize coordinate systems and select ec tower points only ###################################################
@@ -29,33 +34,37 @@ tower2008 <- points2008 %>%
   st_transform(crs = crs(points2017)) %>%
   mutate(Easting = st_coordinates(.)[,1],
          Northing = st_coordinates(.)[,2],
-         Elevation = st_coordinates(.)[,3] + 14.58) %>%
+         Elevation = st_coordinates(.)[,3] + 14.58,
+         ALT = dp_avg) %>%
   st_drop_geometry() %>%
   st_as_sf(coords = c('Easting', 'Northing', 'Elevation'), remove = FALSE) %>%
-  select(id, Easting, Northing, Elevation)
+  select(id, ALT, Easting, Northing, Elevation)
 
 tower2017 <- points2017 %>%
   filter(as.numeric(as.character(Name)) >= 13000) %>%
-  mutate(id = as.numeric(as.character(Name)) - 13000) %>%
-  mutate(id = ifelse(id >= 218,
-                     id + 5,
-                     ifelse(id >= 140,
-                            id + 4,
-                            ifelse(id >= 73,
-                                   id + 3,
-                                   ifelse(id >= 24,
-                                          id + 2,
-                                          ifelse(id >= 14,
-                                                 id + 1,
-                                                 id)))))) %>%
-  select(id, Easting, Northing, Elevation)
+  left_join(mutate(td2017, Name = as.factor(Name)), by = c('Name')) %>%
+  mutate(Name = as.numeric(as.character(Name)) - 13000) %>%
+  mutate(id = ifelse(Name >= 218,
+                     Name + 5,
+                     ifelse(Name >= 140,
+                            Name + 4,
+                            ifelse(Name >= 73,
+                                   Name + 3,
+                                   ifelse(Name >= 24,
+                                          Name + 2,
+                                          ifelse(Name >= 14,
+                                                 Name + 1,
+                                                 Name)))))) %>%
+  select(id, ALT, Easting, Northing, Elevation)
 
 tower2019 <- points2019 %>%
   filter(as.numeric(as.character(Name)) >= 14000) %>%
+  left_join(mutate(td2019, Name = as.factor(point + 14000)), by = c('Name')) %>%
   mutate(id = ifelse(as.numeric(as.character(Name)) < 14227,
                      as.numeric(as.character(Name)) - 14000,
-                     as.numeric(as.character(Name)) - 13999)) %>%
-  select(id, Easting, Northing, Elevation)
+                     as.numeric(as.character(Name)) - 13999),
+         ALT = alt) %>%
+  select(id, ALT, Easting, Northing, Elevation)
 
 # compare height point by point
 tower_summary <- tower2008 %>%
@@ -124,7 +133,7 @@ tower_raster <- map(
 )
 
 plot(tower_raster[[1]][[1]])
-plot(tower_raster[[2]])
+plot(tower_raster[[2]][[1]])
 plot(tower_raster[[3]])
 
 sub17 <- tower_raster[[2]][[1]] - tower_raster[[1]][[1]]
@@ -136,4 +145,15 @@ plot(tower_sp[[1]], add = TRUE, col = 'red')
 plot(tower_sp[[2]], add = TRUE, col = 'blue')
 plot(tower_sp[[3]], add = TRUE, col = 'green')
 
+dtm_mask <- dtm %>%
+  projectRaster(ec_mask) %>%
+  mask(ec_mask)
+
+plot(dtm_mask)
+
+diff <- tower_raster[[2]][[1]] - dtm_mask
+plot(diff)
+
+base_height <- raster::extract(dtm, filter(points2019, Name == 'base') %>% st_zm())
+correction <- base_height - filter(points2019, Name == 'base')$Elevation
 ######################################################################################################################
