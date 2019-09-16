@@ -147,6 +147,14 @@ elev_change_df <- elev_change_df %>%
          y.norm = round(y-min(y, na.rm = TRUE)),
          collection = factor(collection, levels = c('May2019', 'Aug2019'))) %>%
   select(x, y, x.norm, y.norm, block, collection, dElev, dElev.10, dElev.20, point.dist)
+
+fig <- ggplot(elev_change_df, aes(x = point.dist, y = abs(dElev), color = collection)) +
+  geom_point() +
+  geom_smooth(method = 'lm')
+
+fig
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/point_dist.jpg', fig)
 ##############################################################################################################
 
 ### summarize the frost heave and seasonal subsidence ########################################################
@@ -169,7 +177,8 @@ facet_labels <- c(`a` = 'A',
                   `c` = 'C',
                   `May2019` = 'August 2018 - May 2019',
                   `Aug2019` = 'May - August 2019')
-ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev)) +
+
+season_sub <- ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev)) +
   geom_tile() +
   scale_x_continuous(name = '') +
   scale_y_continuous(name = '') +
@@ -179,7 +188,11 @@ ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev)) +
   theme_few() +
   coord_fixed()
 
-ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.20)) +
+season_sub
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/seasonal_sub_2018_2019.jpg', season_sub)
+
+season_sub_20 <- ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.20)) +
   geom_tile() +
   scale_x_continuous(name = '') +
   scale_y_continuous(name = '') +
@@ -188,7 +201,12 @@ ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.20)) +
              labeller = as_labeller(facet_labels)) +
   theme_few() +
   coord_fixed()
-ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.10)) +
+
+season_sub_20
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/seasonal_sub20_2018_2019.jpg', season_sub_20)
+
+season_sub_10 <- ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.10)) +
   geom_tile() +
   scale_x_continuous(name = '') +
   scale_y_continuous(name = '') +
@@ -197,6 +215,10 @@ ggplot(elev_change_df, aes(x = x.norm, y = y.norm, fill = dElev.10)) +
              labeller = as_labeller(facet_labels)) +
   theme_few() +
   coord_fixed()
+
+season_sub_10
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/seasonal_sub10_2018_2019.jpg', season_sub_10)
 
 # # map the frost heave with the distances between gps points for that cell overlaid
 # titles <- list('A', 'B', 'C')
