@@ -99,6 +99,8 @@ distance_summary_stats <- point_distances %>%
 ggplot(point_distances, aes(x = block, y = distance, fill = collection)) +
   geom_boxplot()
 
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/point_dist.jpg')
+
 # turn the distances into a list for using the map function
 point_distances <- st_drop_geometry(point_distances)
 distance_list <- list(list(filter(point_distances, block == 'a' & collection == 'May2019'),

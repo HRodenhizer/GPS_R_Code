@@ -10,6 +10,7 @@ library(tidyverse)
 library(ggthemes)
 library(viridis)
 library(merTools)
+library(readxl)
 ##############################################################################################################
 
 ### Load data ################################################################################################
@@ -90,6 +91,8 @@ ggplot(frost_heave_alt, aes(x = frost.heave, y = ALT, color = full.treatment, la
   geom_point() +
   geom_text(aes(label = Name))
 
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Seasonal_Subsidence/Figures/alt_seasonal_sub.jpg')
+
 ggplot(frost_heave_alt, aes(x = subsidence, y = ALT, color = full.treatment, label = Name)) +
   geom_point() +
   geom_text(aes(label = Name))
@@ -99,6 +102,12 @@ ggplot(frost_heave_alt, aes(x = microtopography, y = ALT, color = full.treatment
   geom_text(aes(label = Name))
 
 ggplot(frost_heave_alt, aes(x = as.factor(fence), y = subsidence, label = plot)) +
+  geom_text(aes(label = plot))
+
+ggplot(frost_heave_alt, aes(x = microtopography, y = subsidence, color = full.treatment, label = plot)) +
+  geom_text(aes(label = plot))
+
+ggplot(frost_heave_alt, aes(x = microtopography, y = frost.heave, color = full.treatment, label = plot)) +
   geom_text(aes(label = plot))
 ##############################################################################################################
 
