@@ -18,7 +18,7 @@ points2017 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab
 points2019 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_08_2019_SPCSAK4.shp')
 td2017 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2017 GPS/ALT_Measurements.xlsx')
 td2019 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2019 GPS/ec_tower_alt_20190810.xlsx')
-dtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTM_All/eml_dtm')
+dtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTM_ellipsoid_issue_corrected.tif')
 test <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7085000_DTM.tif')
 ######################################################################################################################
 
@@ -150,9 +150,15 @@ dtm_mask <- dtm %>%
   mask(ec_mask)
 
 plot(dtm_mask)
+plot(tower_sp[[2]], add = TRUE, col = 'red')
 
-diff <- tower_raster[[2]][[1]] - dtm_mask
+diff <- tower_raster[[2]][[1]] - dtm_mask # 2017 ec data is the second in the list, and dtm data from 2017
 plot(diff)
+test <- as.data.frame(diff)
+boxplot(diff)
+mean_diff <- mean(test$layer, na.rm = TRUE)
+min_diff <- min(test$layer, na.rm = TRUE)
+max_diff <- max(test$layer, na.rm = TRUE)
 
 base_height <- raster::extract(dtm, filter(points2019, Name == 'base') %>% st_zm())
 correction <- base_height - filter(points2019, Name == 'base')$Elevation
