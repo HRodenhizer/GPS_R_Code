@@ -19,7 +19,7 @@ library(viridis)
 # find elevation files in directory
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected", full.names = TRUE, pattern = '[[:alpha:]]{1}[[:digit:]]{4}[[:alpha:]]+\\.tif$')
 # make a list of elevation raster stacks for each block
-Elevation <- list
+Elevation <- list(brick(stack(filenames[1:7])), brick(stack(filenames[8:14])), brick(stack(filenames[15:21])))
 blocks <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
 blocks11 <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly_2011.shp')
 ############################################################################################################

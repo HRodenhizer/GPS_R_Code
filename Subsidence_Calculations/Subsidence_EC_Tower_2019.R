@@ -24,17 +24,19 @@ test <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote
 
 ### Standardize coordinate systems and select ec tower points only ###################################################
 # Verticle transformation of 2008 is complex
-# -14.58 is the height of geoid 99. I think this value was applied twice during the original processing
-# therefore, I add 14.58 to undo the extra one and get an orthometric height in geoid 99
-# -0.581 is applied as the offset in the recorded base station height between early years and later years
+# -14.58 is the height of geoid 99. I think this value was applied to a height that was already orthometric during the original processing
+# therefore, I add 14.58 to undo the extra one and get an orthometric height (in geoid 99? - or in geoid 09?)
+# +0.581 is applied as the offset in the recorded base station height between early years and later years
+# -0.05 is the conversion from geoid 09 to geoid 12B
+# -0.439 is the offset between the WGS84 (G1150) and NAD83(11) ellipsoids
 # +1.81 is the conversion from geoid 99 to geoid 12B
-# total offset is 15.999 - except this leaves the whole area with 1.5 m of subsidence...
+# total offset is 15.37 - but this means that absolutely everywhere subsided by 0.9-1.4 m...
 tower2008 <- points2008 %>%
   filter(Lat != 0) %>%
   st_transform(crs = crs(points2017)) %>%
   mutate(Easting = st_coordinates(.)[,1],
          Northing = st_coordinates(.)[,2],
-         Elevation = st_coordinates(.)[,3] + 14.58,
+         Elevation = st_coordinates(.)[,3] + 15.111,
          ALT = dp_avg) %>%
   st_drop_geometry() %>%
   st_as_sf(coords = c('Easting', 'Northing', 'Elevation'), remove = FALSE) %>%
@@ -138,9 +140,11 @@ plot(tower_raster[[3]])
 
 sub17 <- tower_raster[[2]][[1]] - tower_raster[[1]][[1]]
 sub19 <- tower_raster[[3]][[1]] - tower_raster[[1]][[1]]
+diff_17_19 <- tower_raster[[3]][[1]]-tower_raster[[2]][[1]]
 
 plot(sub17)
 plot(sub19)
+plot(diff_17_19)
 plot(tower_sp[[1]], add = TRUE, col = 'red')
 plot(tower_sp[[2]], add = TRUE, col = 'blue')
 plot(tower_sp[[3]], add = TRUE, col = 'green')
