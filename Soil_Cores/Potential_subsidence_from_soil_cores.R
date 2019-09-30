@@ -444,21 +444,31 @@ CO2.flux <- 755 # g C/m^2 yr from Plaza et al. 2019
 CH4.flux <- 1.2 # g C/m^2 yr from Taylor et al. 2018
 C.flux <- CO2.flux+CH4.flux
 avg.bd <- soil %>%
-  filter(depth.cat == '35-45' | depth.cat == '45-55') %>%
+  filter(year == 2009 & (depth.cat == '35-45' | depth.cat == '45-55')) %>%
   select(bulk.density) %>%
   summarise(mean.bd = mean(bulk.density, na.rm = TRUE)) %>%
   as.numeric()*10^6 # g/m^3
 
+om.bd <- soil %>%
+  filter(year == 2009 & (depth.cat == '5-15' | depth.cat == '15-25' | depth.cat == '25-35')) %>%
+  select(bulk.density) %>%
+  summarise(mean.bd = mean(bulk.density, na.rm = TRUE)) %>%
+  as.numeric()*10^6
+
 avg.C.stock <- soil %>%
-  filter(depth.cat == '35-45' | depth.cat == '45-55') %>%
+  filter(year == 2009 & (depth.cat == '5-15' | depth.cat == '15-25' | depth.cat == '25-35')) %>%
   select(C) %>%
   summarise(mean.C = mean(C, na.rm = TRUE)) %>%
   as.numeric()*10^-3 # g/m^3
 
-upr <- C.core/avg.C.stock*1/avg.bd # m/yr
-lwr <- C.flux/avg.C.stock*1/avg.bd # m/yr
-upr.9 <- upr*9
-lwr.9 <- lwr*9
+C.upr.bd.lwr.rate <- C.core/(avg.C.stock*avg.bd) # m/yr
+C.lwr.bd.lwr.rate <- C.flux/(avg.C.stock*avg.bd) # m/yr
+C.upr.bd.upr.rate <- C.core/(avg.C.stock*om.bd) # m/yr
+C.lwr.bd.upr.rate <- C.flux/(avg.C.stock*om.bd) # m/yr
+C.upr.bd.upr.9 <- C.upr.bd.upr.rate*9
+C.lwr.bd.upr.9 <- C.lwr.bd.upr.rate*9
+C.upr.bd.lwr.9 <- C.upr.bd.lwr.rate*9
+C.lwr.bd.lwr.9 <- C.lwr.bd.lwr.rate*9
 
 avg.sub.2018 <- moisture_loss_2 %>%
   st_drop_geometry() %>%
