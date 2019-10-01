@@ -56,7 +56,7 @@ ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
                         full.names = TRUE, pattern = '^.*.tif$')
 # make a list of elevation raster stacks for each block
-Elevation <- list(brick(filenames[1]), brick(filenames[3]), brick(filenames[5]))
+Elevation <- list(brick(filenames[1]), brick(filenames[4]), brick(filenames[7]))
 
 rm(filenames)
 ####################################################################################################################################
@@ -276,6 +276,7 @@ ww2009 <- water_wells %>%
 # extract subsidence at each of the 2009 water wells
 blocks <- list(1, 2, 3)
 sub13_18 <- map(Elevation, ~ brick(.x[[5]]-.x[[1]], .x[[10]]-.x[[1]]))
+
 ww_sub <- map2_dfr(sub13_18, 
                blocks, 
                ~ raster::extract(.x, 
@@ -393,23 +394,23 @@ ConfData <-  cbind( ConfData, confint( bootObj,  level=0.95 ))
 
 colnames(ConfData) <- c('cumulative.moisture.height', 'lwr', 'upr')
 
-ice.loss <- ggplot(moisture_loss_fit, aes(x = cumulative.moisture.height, y = sub, colour = treatment)) +
-  geom_ribbon(data = ConfData, aes(x = cumulative.moisture.height, ymin = lwr, ymax = upr), inherit.aes = FALSE, alpha = 0.3) +
+ice.loss <- ggplot(moisture_loss_fit, aes(x = cumulative.moisture.height*-1, y = sub, colour = treatment)) +
+  geom_ribbon(data = ConfData, aes(x = cumulative.moisture.height*-1, ymin = lwr, ymax = upr), inherit.aes = FALSE, alpha = 0.3) +
   geom_point() +
-  geom_segment(aes(x = min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
+  geom_segment(aes(x = min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE)*-1, 
                    y = model_ci$coefs[1] + model_ci$coefs[2]*min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
-                   xend = max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE), 
+                   xend = max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE)*-1, 
                    yend = model_ci$coefs[1] + model_ci$coefs[2]*max(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE)),
                colour = 'black') +
   scale_x_continuous(name = 'Ice Height (m)') +
-  scale_y_continuous(name = 'Measured Subsidence (m)') +
+  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (m)")) +
   annotate(geom = 'text', 
-           x = -0.4, 
+           x = 0.4125, 
            y = 0.05, 
-           label = paste('y = ', round(model_ci$coefs[1], 3), ' + ', round(model_ci$coefs[2], 3), 'x', sep = ''),
+           label = paste('y = ', round(model_ci$coefs[1], 3), ' - ', round(model_ci$coefs[2], 3), 'x', sep = ''),
            size = 2.5) +
   annotate(geom = 'text',
-           x = -0.46,
+           x = 0.46,
            y = 0.01,
            label = paste0("~R[c]^2==", round(r.squared[2], 2)), 
            parse = TRUE, 
@@ -478,6 +479,8 @@ avg.sub.2018 <- moisture_loss_2 %>%
   summarise(mean.sub = mean(sub, na.rm = TRUE)*-1) %>%
   as.numeric()
 
-upr.percent <- upr.9/avg.sub.2018
-lwr.percent <- lwr.9/avg.sub.2018
+C.upr.bd.lwr.percent <- C.upr.bd.lwr.9/avg.sub.2018
+C.lwr.bd.lwr.percent <- C.lwr.bd.lwr.9/avg.sub.2018
+C.upr.bd.upr.percent <- C.upr.bd.upr.9/avg.sub.2018
+C.lwr.bd.upr.percent <- C.lwr.bd.upr.9/avg.sub.2018
 ####################################################################################################################################

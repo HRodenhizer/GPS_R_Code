@@ -136,6 +136,13 @@ Fences.norm <- Fences %>%
          dummy = '') %>%
   select(-x.min, -y.min)
 
+# make a dataframe for adding in control vs. soil warming labels
+treatments <- data.frame(year = rep(2011, 10),
+                         block = rep('A', 10),
+                         treatment = c(rep('Control', 5), rep('Soil Warming', 5)),
+                         x = c(1.5, -2, 19, 22.5, 1.5, 9, 3, 24, 30, 9),
+                         y = c(13, 19, 32.5, 26.5, 13,  -0.25, 10.5, 23.5, 13, -0.25))
+
 # map with all years (including gap filled data)
 sub_map_filled <- ggplot(Subsidence.df, aes(x=long.norm, y=lat.norm, fill=Sub)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
@@ -161,19 +168,23 @@ sub_map_filled
 sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long.norm, y=lat.norm, fill=Sub)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
   geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
+  geom_path(data = treatments, aes(x = x, y = y, color = treatment), size = 1, inherit.aes = FALSE) +
   facet_grid(block ~ year) +
   coord_fixed() +
   theme_few() +
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
                      limits = c(-1.0, 0.5)) +
-  scale_color_manual('Snow Fence',
-                     values = 'black') +
+  scale_color_manual(name = '',
+                     labels = c('Snow Fence', 'Control', 'Soil Warming'),
+                     values = c('#000000', "#006666", "#CC3300")) +
   scale_x_continuous(name = 'Distance (m)') +
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
         text = element_text(size = 8),
-        strip.text.y = element_text(angle = 0))
+        strip.text.y = element_text(angle = 0)) +
+  guides(color = guide_legend(label.position = "top",
+                              label.hjust = 0)) 
 
 sub_map
 

@@ -787,31 +787,35 @@ gtest2
 
 # soil profile graphs
 # colors needed
-names <- c('Subsidence', 'Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
-color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699', 'Subsidence' = '#FFFFFF')
-linetypes <- c('Permafrost' = 'solid', 'Unsaturated Active Layer' = 'solid', 'Saturated Active Layer' = 'solid', 'Subsidence' = 'dashed')
+names <- c('Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
+color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
 
 # Cross section of soil for control and warming
 treat_labels <- c(Control = 'Control',
                   Warming = 'Soil Warming')
 g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   facet_grid(. ~ treatment, labeller = labeller(treatment = treat_labels)) +
-  geom_ribbon(aes(ymin = mean.subsidence, ymax = 0, fill = 'Subsidence', linetype = 'Subsidence'), 
-              color = "black") +
-  geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost', linetype = 'Permafrost'), 
+  geom_ribbon(aes(ymin = mean.subsidence, ymax = 0),
+              fill = 'white') +
+  geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost'),
+              linetype = 1,
+              colour = 'black',
+              size = 1) +
+  geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer'),
+              linetype = 1,
+              colour = 'black',
+              size = 1) +
+  geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
+              linetype = 1,
               colour = 'black') +
-  geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer', linetype = 'Unsaturated Active Layer'), 
-              colour = 'black') +
-  geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer', linetype = 'Saturated Active Layer'), 
-              colour = 'black') +
-  geom_line(aes(y = mean.ALT), color = 'black', linetype = 3) +
+  geom_line(aes(y = mean.ALT),
+            linetype = 3,
+            color = 'black',
+            size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
   scale_fill_manual(name = '',
                     values = color,
                     breaks = names) +
-  scale_linetype_manual(name = '',
-                        values = linetypes,
-                        breaks = names) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      limits = c(2009, 2018),
