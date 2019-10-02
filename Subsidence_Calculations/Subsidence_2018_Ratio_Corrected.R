@@ -139,7 +139,7 @@ Fences.norm <- Fences %>%
 # make a dataframe for adding in control vs. soil warming labels
 treatments <- data.frame(year = rep(2011, 10),
                          block = rep('A', 10),
-                         treatment = c(rep('Control', 5), rep('Soil Warming', 5)),
+                         treatment = factor(c(rep('Soil Warming', 5), rep('Control', 5)), levels = c('Control', 'Soil Warming')),
                          x = c(1.5, -2, 19, 22.5, 1.5, 9, 3, 24, 30, 9),
                          y = c(13, 19, 32.5, 26.5, 13,  -0.25, 10.5, 23.5, 13, -0.25))
 
