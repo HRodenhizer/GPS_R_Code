@@ -51,7 +51,7 @@ water_wells <- water_wells %>%
          Northing = coords[,2])
 # Load ALT
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', 
-                     header = TRUE, sep = '\t')
+                     header = TRUE, sep = '/t')
 # find elevation files in directory
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
                         full.names = TRUE, pattern = '^.*.tif$')
@@ -215,7 +215,9 @@ moisture_loss <- moisture %>%
   group_by(block, fence, treatment) %>%
   mutate(moisture.height = (moisture/1000*bulk.density*height/0.92)/(1 - moisture/1000)*10^-2, # output in m
          cumulative.moisture.height = cumsum(moisture.height)) %>%
-  arrange(alt.year, fence, treatment)
+  arrange(block, fence, treatment, alt.year)
+
+# write.csv(moisture_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
 
 ggplot(moisture_loss, aes(x = height/100, y = moisture.height)) +
   geom_point()

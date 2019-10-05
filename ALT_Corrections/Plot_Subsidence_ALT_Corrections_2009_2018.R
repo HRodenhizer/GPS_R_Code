@@ -751,11 +751,11 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
   scale_color_manual(name = 'Permafrost Thaw',
                      breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#666666", "#000000"),
-                     labels = c('ALT', 'S-ALT')) +
+                     labels = c('ALT', 'SALT')) +
   scale_fill_manual(name = 'Thawed C',
                     breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#666666", "#000000"),
-                     labels = c('ALT', 'S-ALT')) +
+                     labels = c('ALT', 'SALT')) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
   scale_y_continuous(name = 'Permafrost Thaw (cm)',
