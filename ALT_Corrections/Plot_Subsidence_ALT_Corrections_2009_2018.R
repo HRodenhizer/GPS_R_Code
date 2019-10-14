@@ -431,7 +431,6 @@ subpointsC <- subpoints2 %>%
          wholeplot = factor(block2:fence2:treatment2),
          full.treatment = factor(as.character(full.treatment),
                                  levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
-
 ## Run the model with a different slope for each fence/treatment combination
 # model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 
@@ -606,7 +605,7 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
   geom_ribbon(data = subpoints.fit, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
   geom_point(alpha = 0.5) +
   geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
-  scale_color_manual(values = c("#006699", '#009900', "#990000", '#330000'),
+  scale_color_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
                      labels = c(paste('Control:  y = ', 
                                       round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
                                       'x', 
@@ -799,12 +798,10 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
               fill = 'white') +
   geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost'),
               linetype = 1,
-              colour = 'black',
-              size = 1) +
+              colour = 'black') +
   geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer'),
               linetype = 1,
-              colour = 'black',
-              size = 1) +
+              colour = 'black') +
   geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
               linetype = 1,
               colour = 'black') +
@@ -813,6 +810,12 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
             color = 'black',
             size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
+  geom_line(aes(y = mean.subsidence), size = 1)+
+  geom_line(aes(y = mean.ALT.corrected), size = 1) +
+  geom_errorbar(aes(ymin = mean.subsidence - se.subsidence, ymax = mean.subsidence + se.subsidence), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.subsidence + mean.WTD - se.WTD, ymax = mean.subsidence + mean.WTD + se.WTD), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.ALT - se.ALT, ymax = mean.ALT + se.ALT), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.ALT.corrected - se.ALT.corrected, ymax = mean.ALT.corrected + se.ALT.corrected), width = 0.2, colour = 'grey50') +
   scale_fill_manual(name = '',
                     values = color,
                     breaks = names) +
