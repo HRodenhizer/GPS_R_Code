@@ -27,3 +27,23 @@ for (i in 1:length(elevation)) {
 }
 
 # write.csv(volume, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Volume_of_Subsidence_2018.csv')
+
+# plot
+soil.loss <- ggplot(volume, aes(x = block, y = volume.lost*-1)) +
+  geom_col(fill = '#990000') +
+  scale_x_discrete(name = '') +
+  scale_y_continuous(name = expression(Volume~Soil~Lost~(m^3)),
+                     limits = c(0, 205)) +
+  theme_few() +
+  theme(axis.title.x = element_text(size = 16),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 16),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Volume_Soil_Lost.jpg', soil.loss)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Volume_Soil_Lost.pdf', soil.loss)

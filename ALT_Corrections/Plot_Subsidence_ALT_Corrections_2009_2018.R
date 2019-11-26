@@ -3,8 +3,6 @@
 ###                            Code written by HGR, Sep 2018                                             ###
 ############################################################################################################
 
-# need to add 2018 ALT to this dataset, also redo with filled elevation stack
-
 ################################### Load packages necessary for analysis - run every time ##################
 library(sf)
 library(readxl)
@@ -17,15 +15,19 @@ library(ggfortify)
 library(MuMIn)
 library(merTools)
 library(tidyverse)
+library(emmeans)
 ############################################################################################################
 
 ### Load data ##############################################################################################
 # CiPEHR - Stack the subsidence rasters which are calculated from 2009
-CiPEHR_brick <- list(brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/AElevationStack.tif'), 
-                     brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/BElevationStack.tif'), 
-                     brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/CElevationStack.tif'))
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks', full.names = TRUE)
+CiPEHR_brick <- list(brick(filenames[1]), 
+                     brick(filenames[3]), 
+                     brick(filenames[5]))
 # DryPEHR - Stack the subsidence rasters which are calculated from 2011
-DryPEHR_brick <- list(stack(filenames[1:4]), stack(filenames[10:13]), stack(filenames[19:22]))
+DryPEHR_brick <- list(brick(filenames[2]), 
+                      brick(filenames[4]), 
+                      brick(filenames[6]))
 # 2017 shapefile for location of plots
 plotcoords <- read_sf("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp") %>%
   mutate(block = ifelse(fence == 1 | fence == 2,
@@ -50,28 +52,44 @@ ALTdata <- read_excel("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD", full.names = TRUE, pattern = '\\.csv$')
 lst <- lapply(filenames, read.csv)
 WTD <- rbindlist(lst, fill=T)
-############################################################################################################
+
+# Variance data
+filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance', full.names = TRUE, pattern = "\\.tif$")
+variance1 <- list(stack(filenames[1:4]), stack(filenames[7:10]), stack(filenames[13:16])) # stack all but 2017 and 2018 which haven't been clipped
+variance2 <- list(stack(filenames[5:6]), stack(filenames[11:12]), stack(filenames[17:18]))
+blocks <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
+
+# clip 2017 and 2018 data and join with the rest
+variance <- list()
+for (i in 1:length(variance2)) {
+  temp.block <- blocks %>%
+    filter(Block == unique(Block)[i])
+  var.mask <- mask(variance2[[i]], temp.block)
+  variance[[i]] <- stack(variance1[[i]], var.mask)
+  variance[[i]] <- brick(variance[[i]])
+}
+#######################################################################################
 
 ######## Extract subsidence values from rasters using plot locations from plotcoords data frames and format to join with plotcoords again ########
 ### CiPEHR
 CiPEHR_extract <- data.frame()
-for (i in 1: length(CiPEHR_stack)) {
+for (i in 1: length(CiPEHR_brick)) {
   plotcoords.temp <- plotcoords %>%
     filter(block == i & exp == 'CiPEHR')
-  CiPEHR_extract_temp <- extract(CiPEHR_stack[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_stack[[i]]), df = TRUE) %>%
-    dplyr::select(sub2011 = 2,
-                  sub2015 = 3,
-                  sub2016 = 4,
-                  sub2017 = 5,
-                  sub2018 = 6,
+  CiPEHR_extract_temp <- raster::extract(CiPEHR_brick[[i]], plotcoords.temp, layer = 1, nl = nlayers(CiPEHR_brick[[i]]), df = TRUE) %>%
+    dplyr::select(sub2010 = 2,
+                  sub2011 = 3,
+                  sub2012 = 4,
+                  sub2013 = 5,
+                  sub2014 = 6,
+                  sub2015 = 7,
+                  sub2016 = 8,
+                  sub2017 = 9,
+                  sub2018 = 10,
                   -ID) %>%
-    mutate(sub2009 = 0,
-           sub2010 = NA,
-           sub2012 = NA,
-           sub2013 = NA,
-           sub2014 = NA) %>%
+    mutate(sub2009 = 0) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    gather(key = year, value = subsidence, sub2011:sub2014) %>%
+    gather(key = year, value = subsidence, sub2010:sub2009) %>%
     mutate(year = as.numeric(str_sub(year, 4, 7)),
            time = year - 2009,
            treatment = ifelse(plot == 1 | plot == 3,
@@ -87,21 +105,21 @@ for (i in 1: length(CiPEHR_stack)) {
 
 ### DryPEHR
 DryPEHR_extract <- data.frame()
-for (i in 1: length(DryPEHR_stack)) {
+for (i in 1: length(DryPEHR_brick)) {
   plotcoords.temp <- plotcoords %>%
     filter(block == i & exp == 'DryPEHR')
-  DryPEHR_extract_temp <- extract(DryPEHR_stack[[i]], plotcoords.temp, layer = 1, nl = nlayers(DryPEHR_stack[[i]]), df = TRUE) %>%
-    dplyr::select(sub2015 = 2,
-                  sub2016 = 3,
-                  sub2017 = 4,
-                  sub2018 = 5,
+  DryPEHR_extract_temp <- raster::extract(DryPEHR_brick[[i]], plotcoords.temp, layer = 1, nl = nlayers(DryPEHR_brick[[i]]), df = TRUE) %>%
+    dplyr::select(sub2012 = 2,
+                  sub2013 = 3,
+                  sub2014 = 4,
+                  sub2015 = 5,
+                  sub2016 = 6,
+                  sub2017 = 7,
+                  sub2018 = 8,
                   -ID) %>%
-    mutate(sub2011 = 0,
-           sub2012 = NA,
-           sub2013 = NA,
-           sub2014 = NA) %>%
+    mutate(sub2011 = 0) %>%
     cbind.data.frame(plotcoords.temp) %>%
-    gather(key = year, value = subsidence, sub2015:sub2014) %>%
+    gather(key = year, value = subsidence, sub2012:sub2011) %>%
     mutate(year = as.numeric(str_sub(year, 4, 7)),
            time = year - 2011,
            treatment = ifelse(plot == 'a',
@@ -122,96 +140,117 @@ Sub_extract <- CiPEHR_extract %>%
   st_as_sf() %>%
   group_by(fence, plot) %>%
   mutate(block = ifelse(block == 1,
-                        'A',
+                        'a',
                         ifelse(block == 2,
-                               'B',
-                               'C')),
-         subsidence = ifelse(subsidence != is.na(subsidence),
-                             subsidence,
-                             predict.lm(subsidence ~ time))) %>%
+                               'b',
+                               'c'))) %>%
   dplyr::select(year, exp, block, fence, plot, treatment, subsidence, time)
 
 # write.table(Sub_extract, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.txt', sep = '\t', row.names = FALSE)
 
-############################################################################################################
-  
-######################### Linear Models ####################################################################
-#Linear models - this one for each plot individually
-submodel <- function(df) {fit <- lm(subsidence ~ time,  data=df)
-return(cbind.data.frame(
-  reg.intercept = summary(fit)$coefficients[1],
-  reg.slope = summary(fit)$coefficients[2],
-  reg.r2 = summary(fit)$r.squared,
-  reg.pvalue = anova(fit)$'Pr(>F)'[1]
-))}
-
-coefs_subsidence <- Sub_extract %>%
-  group_by(fence, plot) %>%
-  do(submodel(.)) %>%
-  ungroup() %>%
-  mutate(fence = as.integer(fence))
-
-# write.csv(coefs_subsidence, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/CiPEHR_DryPEHR_Subsidence_Regression_Coefficients_Ratio_Corrected_2009_2018.csv', row.names = FALSE)
+# find std error of max frost heave cell (located in block A 2011)
+raster(se[[1]], layer = 2)[raster(subsidenceC[[1]], layer = 2) == cellStats(raster(subsidenceC[[1]], layer = 2), stat = 'max')]
 ############################################################################################################
 
-######################### Merge points2017 and regression coefficients and gap fill with regressions ###########################
-require(graphics)
+######## Extract std error values from rasters using plot locations ########
+# don't do with drypehr because the subsidence modeling doesn't include drypehr.
+# Still could figure out error associated with gap filled data, but it's not used in modeling so it's not strictly necessary.
+se <- list()
+se_extract <- data.frame()
+se_subsidence <- data.frame()
+for (i in 1: length(variance)) {
+  plotcoords.temp <- plotcoords %>%
+    filter(block == i & exp == 'CiPEHR')
+  se[[i]] <- calc(variance[[i]], sqrt)
+  se_extract_temp <- raster::extract(se[[i]], plotcoords.temp, layer = 1, nl = nlayers(se[[i]]), df = TRUE) %>%
+    dplyr::select(se.2009 = 2,
+                  se.2011 = 3,
+                  se.2015 = 4,
+                  se.2016 = 5,
+                  se.2017 = 6,
+                  se.2018 = 7,
+                  -ID) %>%
+    cbind.data.frame(plotcoords.temp) %>%
+    dplyr::select(exp, block, fence, plot, se.2009:se.2018, Easting:Elevation)
+  se_subsidence_temp <- se_extract_temp %>%
+    gather(key = year, value = se, se.2009:se.2018) %>%
+    group_by(exp, block, fence, plot, Easting, Northing, Elevation) %>%
+    mutate(year = as.numeric(str_sub(year, 4, 7)),
+           time = year - 2009,
+           treatment = ifelse(plot == 1 | plot == 3,
+                              'Air Warming',
+                              ifelse(plot == 2 | plot == 4,
+                                     'Control',
+                                     ifelse(plot == 5 | plot == 7,
+                                            'Air + Soil Warming',
+                                            'Soil Warming'))),
+           sub.se = ifelse(year == 2009,
+                           0,
+                           sqrt(se^2 + first(se)^2))) %>%
+    ungroup() %>%
+    mutate(block = ifelse(block == 1,
+                          'a',
+                          ifelse(block == 2,
+                                 'b',
+                                 'c'))) %>%
+    dplyr::select(year, exp, block, fence, plot, treatment, time, se, sub.se, Easting, Northing, Elevation)
+  se_extract <- rbind.data.frame(se_extract, se_extract_temp)
+  se_subsidence <- rbind.data.frame(se_subsidence, se_subsidence_temp)
+  rm(i, plotcoords.temp, se_extract_temp)
+}
 
-## Predictions
-x <- rnorm(15)
-y <- x + rnorm(15)
-predict(lm(y ~ x))
-new <- data.frame(x = seq(-3, 3, 0.5))
-predict(lm(y ~ x), new, se.fit = TRUE)
-pred.w.plim <- predict(lm(y ~ x), new, interval = "prediction")
-pred.w.clim <- predict(lm(y ~ x), new, interval = "confidence")
-matplot(new$x, cbind(pred.w.clim, pred.w.plim[,-1]),
-        lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
 
-subfill <- Sub_extract %>%
-  dplyr::select(-time) %>%
-  left_join(coefs_subsidence, by = c("fence", "plot")) %>%
-  mutate(year = str_c('sub', year, sep = '')) %>%
-  spread(key = year, value = subsidence) %>%
-  mutate(sub2010 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*1,
-                          NA),
-         sub2012 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*3,
-                          reg.intercept+reg.slope*1),
-         sub2013 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*4,
-                          reg.intercept+reg.slope*2),
-         sub2014 = ifelse(exp == 'CiPEHR',
-                          reg.intercept+reg.slope*5,
-                          reg.intercept+reg.slope*3)) %>%
-  gather(key = year, value = subsidence, sub2009:sub2014) %>%
-  mutate(year = as.integer(str_sub(year, start = 4))) %>%
-  arrange(year, exp, block, fence, plot) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, geometry)
+Sub_extract <- Sub_extract %>%
+  full_join(se_subsidence, by = c('year', 'exp', 'block', 'fence', 'plot', 'treatment', 'time'))
 
-subfill.coords <- st_coordinates(subfill$geometry)
+# writeRaster(se[[1]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/A_std_err.tif')
+# writeRaster(se[[2]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/B_std_err.tif')
+# writeRaster(se[[3]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Std_Err/C_std_err.tif')
+############################################################################################################
 
-subfill.excel <- subfill %>%
-  dplyr::select(-geometry) %>%
-  cbind.data.frame(subfill.coords)
+######################### Prep ALT data and join with sub data #############################################
+# Duplicate plot 2 for drypehr a
+ALTdata.dry <- ALTdata %>%
+  filter(plot == 2) %>%
+  mutate(plot = 'a')
 
-# write.csv(subfill.excel, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Correction_Regressions_2009_2018.csv', row.names = FALSE)
-
-# join subsidence and alt data and make correction
-
+# Select ALT from thaw data
+ALTdata2 <- ALTdata %>%
+  rbind.data.frame(ALTdata.dry) %>%
+  mutate(year = year(date(date)),
+         doy = yday(date(date)),
+         week = floor(doy/7),
+         exp = ifelse(plot == 'a' | plot == 'b' | plot == 'c' | plot == 'd',
+                      'DryPEHR',
+                      'CiPEHR'),
+         treatment = ifelse(plot == 1 | plot == 3,
+                            'Air Warming',
+                            ifelse(plot == 2 | plot == 4,
+                                   'Control',
+                                   ifelse(plot == 5 | plot == 7,
+                                          'Air + Soil Warming',
+                                          ifelse(plot == 6 | plot == 8,
+                                                 'Soil Warming',
+                                                 ifelse(plot == 'a',
+                                                        'Control',
+                                                        ifelse(plot == 'b',
+                                                               'Drying',
+                                                               ifelse(plot == 'c',
+                                                                      'Warming',
+                                                                      'Drying + Warming')))))))) %>%
+  filter(week == 36) %>%
+  select(year, exp, block, fence, plot, treatment, ALT = td)
+         
 ## Somehow 2016 DryPEHR data are getting duplicated - fix me!
-ALTsub <- subfill %>%
+ALTsub <- Sub_extract %>%
   left_join(ALTdata2, by = c("year", "exp", "block", "fence", "plot", "treatment")) %>%
   mutate(ALT = ALT*-1,
-         ALT.corrected = ifelse(reg.slope < 0,
-                                ALT+subsidence*100,
-                                ALT)) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, ALT, ALT.corrected) %>%
+         ALT.corrected = ALT+subsidence*100) %>%
+  dplyr::select(year, exp, block, fence, plot, treatment, subsidence, ALT, ALT.corrected) %>%
   arrange(year, exp, block, fence, plot)
 
 # Write file
-# write.csv(ALTsub, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv', row.names = FALSE)
+# write.table(ALTsub, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', row.names = FALSE, sep = '\t')
 ############################################################################################################
 
 ################# Format WTD - only needs to be done once ##################################################
@@ -239,7 +278,7 @@ WTD2 <- WTD %>%
 ############################################################################################################
 
 ##################### Load and Prep data for mixed effects model and graphing ##############################
-ALTsub <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.csv')
+ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', sep = '\t', header = TRUE)
 subpoints <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/Subsidence_2009_2018_Ratio_Corrected.csv') %>%
   st_as_sf(coords = c('X', 'Y'))
 WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/Compiled/WTD_2018_compiled.csv") %>%
@@ -248,12 +287,29 @@ WTD <- read.csv("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/WTD/C
                             ifelse(treatment == 'Drying + Warming',
                                    'Warming',
                                    as.character(treatment))))
+thawedc <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Thawed_Carbon_w_sub.csv')
 
+### Create a data frame of subsidence points to only reflect winter warming for mixed effects models and graphing subsidence
+subpoints2 <- subpoints %>%
+  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')),
+         treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
+                            'Control',
+                            'Warming'))
+
+### Create a data frame to graph corrected and uncorrected ALT values on top of each other by plot
+ALTsubgraph <- ALTsub %>%
+  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
+  arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
+  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')))
+
+### Create a data frame with WTD, corrected, and uncorrected ALT for each fence and treatment per year
 # join WTD and sub by fence and treatment
 WTD_fence <- WTD %>%
   group_by(year, block, fence, treatment) %>%
   summarise(mean.WTD = mean(WTD, na.rm = TRUE)*-1,
-            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n()))
+            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n())) %>%
+  ungroup() %>%
+  mutate(block = tolower(block))
 
 ALTsub_fence <- ALTsub %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
@@ -267,25 +323,7 @@ ALTsub_fence <- ALTsub %>%
             se.ALT = sd(ALT.corrected, na.rm = TRUE)/sqrt(n())) %>%
   full_join(WTD_fence, by = c('year', 'block', 'fence', 'treatment'))
 
-# average WTD by year and treatment
-WTD2 <- WTD %>%
-  group_by(year, treatment) %>%
-  summarise(WTD = mean(WTD, na.rm = TRUE)*-1)
-
-# gather ALT values that are and aren't corrected to be able to graph on top of each other
-ALTsubgraph <- ALTsub %>%
-  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
-  arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
-  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')))
-
-# redo treatment to only reflect winter warming
-subpoints2 <- subpoints %>%
-  mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')),
-         treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
-                            'Control',
-                            'Warming'))
-
-# a summarized dataframe for graphing differences in corrected and uncorrected ALT between control and warming
+### Create a summarized data frame for graphing differences in corrected and uncorrected ALT between control and warming
 ALTsubgraph2 <- ALTsubgraph %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
                             'Control',
@@ -295,7 +333,17 @@ ALTsubgraph2 <- ALTsubgraph %>%
             mean.ALT = mean(ALT, na.rm = TRUE),
             se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
-  arrange(year, treatment, desc(Measurement_Type))
+  arrange(year, treatment, desc(Measurement_Type)) %>%
+  mutate(sub.correction = ifelse(Measurement_Type == 'ALT',
+                                 'Raw',
+                                 'Subsidence Adjusted'))
+
+### Create a data frame for graphing soil profiles with WTD
+# Create a WTD data frame with averages for each treatment per year
+WTD2 <- WTD %>%
+  group_by(year, treatment) %>%
+  summarise(mean.WTD = mean(WTD, na.rm = TRUE)*-1,
+            se.WTD = sd(WTD, na.rm = TRUE)/sqrt(n()))
 
 # a summarized dataframe with WTD as well to make the soil profile figures
 ALTsub.summary <- ALTsub %>%
@@ -303,9 +351,28 @@ ALTsub.summary <- ALTsub %>%
                             'Control',
                             'Warming')) %>%
   group_by(year, treatment) %>%
-  summarise(subsidence = mean(subsidence, na.rm = TRUE)*100,
-            ALT = mean(ALT.corrected, na.rm = TRUE)) %>%
+  summarise(mean.subsidence = mean(subsidence, na.rm = TRUE)*100,
+            se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
+            mean.ALT.corrected = mean(ALT.corrected, na.rm = TRUE),
+            se.ALT.corrected = sd(ALT.corrected, na.rm = TRUE)/sqrt(n()),
+            mean.ALT = mean(ALT, na.rm = TRUE),
+            se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
+  mutate(percent.change = (mean.ALT.corrected/mean.ALT - 1)*100,
+         se.percent.change = sqrt( (se.ALT.corrected/mean.ALT.corrected)^2 + (se.ALT/mean.ALT)^2 )*100) %>%
   full_join(WTD2, by = c('year', 'treatment'))
+
+### Create a data frame for graphing the carbon change data  with ALT data
+avail_c <- thawedc %>%
+  gather(key = type, value = avail.c, totC.raw:Se.ratio) %>%
+  separate(type, into = c('measurement', 'sub.correction')) %>%
+  spread(key = measurement, value = avail.c) %>%
+  mutate(sub.correction = ifelse(sub.correction == 'raw',
+                                 'Raw',
+                                 'Subsidence Adjusted'))
+
+diff <- thawedc %>%
+  mutate(diff = totC.ratio - totC.raw,
+         Se.diff = sqrt(Se.ratio^2 + Se.raw^2))
 ############################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
@@ -338,6 +405,8 @@ graph_ci <- function(ci,figtitle,model) {ggplot(ci,aes(x=names,y=coefs))+
 
 ############################## Mixed Effects Models ########################################################
 subpointsC <- subpoints2 %>%
+  cbind(subpoints$treatment) %>%
+  rename(full.treatment = subpoints.treatment) %>%
   filter(exp == 'CiPEHR') %>%
   ungroup() %>%
   mutate(block2 = as.factor(ifelse(block == 'A',
@@ -351,74 +420,156 @@ subpointsC <- subpoints2 %>%
          treatment2 = as.factor(ifelse(treatment == 'Control',
                                        1,
                                        2)),
+         treatment3 = as.factor(ifelse(full.treatment == 'Control',
+                                       1,
+                                       ifelse(full.treatment == 'Air Warming',
+                                              2,
+                                              ifelse(full.treatment == 'Soil Warming',
+                                                     3,
+                                                     4)))),
          fencegroup = factor(block2:fence2),
-         wholeplot = factor(block2:fence2:treatment2))
-
+         wholeplot = factor(block2:fence2:treatment2),
+         full.treatment = factor(as.character(full.treatment),
+                                 levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
 ## Run the model with a different slope for each fence/treatment combination
 # model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
 
 
-## Model with time and treatment, but no interaction
-model1 <- lmer(subsidence ~ time + treatment2 + 
+# ## Model with time and soil treatment, but no interaction
+# model1 <- lmer(subsidence ~ 0 + time + treatment2 + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model1)
+# 
+# ## Model with time and all treatments, but no interaction
+# model2 <- lmer(subsidence ~ 0 + time + treatment3 + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model2)
+# 
+# ## Model with different slopes for control and warming
+# model3 <- lmer(subsidence ~ 0 + time + time*treatment2  + 
+#                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+#                data = subpointsC,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model3)
+# 
+# 
+# AICc(model3, model2, model1) # model 3 is best, and no additional variables to add since adding warming didn't improve model
+
+## Model with time 
+model1 <- lmer(subsidence ~ 0 + time +
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model1)
 
-## Model with different slopes for control and warming
-model2 <- lmer(subsidence ~ time*treatment2  + 
+## Model with time and interaction between time and soil warming
+model2 <- lmer(subsidence ~ 0 + time + time:treatment2 +
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model2)
 
-AICc(model2, model1) # model 2 is better, stop
+## Model with time and interaction between time and all treatments
+model3 <- lmer(subsidence ~ 0 + time + time:treatment3 +
+                 (1 | block2/fencegroup/wholeplot) + (1|time), REML = FALSE,
+               data = subpointsC,
+               control=lmerControl(check.conv.singular="warning"))
 
-# check model residuals of model2
+summary(model3)
+
+AICc(model3, model2, model1)
+
+
+# check model residuals of model3
 # look at residuals
-model2.resid <- resid(model2)
-model2.fitted <- fitted(model2)
-model2.sqrt <- sqrt(abs(resid(model2)))
+model3.resid <- resid(model3)
+model3.fitted <- fitted(model3)
+model3.sqrt <- sqrt(abs(resid(model3)))
 
 # graph
 par(mfrow=c(2,2), mar = c(4,4,3,2))
-plot(model2.fitted, model2.resid, main='resid, model2')
-plot(model2.fitted, model2.sqrt, main='sqrt resid, model2')
-qqnorm(model2.resid, main = 'model2')
-qqline(model2.resid)
+plot(model3.fitted, model3.resid, main='resid, model3')
+plot(model3.fitted, model3.sqrt, main='sqrt resid, model3')
+qqnorm(model3.resid, main = 'model3')
+qqline(model3.resid)
 par(mfrow=c(1,1))
 
 hist(subpointsC$subsidence)
 
 # rerun best model with REML = TRUE
-subsidence.model <- lmer(subsidence ~ time*treatment2  + 
+subsidence_model <- lmer(subsidence ~ 0 + time:treatment3  + 
                  (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
                data = subpointsC,
                control=lmerControl(check.conv.singular="warning"))
 
-summary(subsidence.model)
+summary(subsidence_model)
+r.squaredGLMM(subsidence_model)
+LetterResults <- emmeans(subsidence_model, ~ treatment3) %>% cld(Letters=letters)
+LetterResults
 
 # save model
-# saveRDS(subsidence.model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
+# saveRDS(subsidence_model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
+subsidence_model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
 
 # calculate confidence intervals to look at fixed effects
-subsidence_model_ci <- extract_ci(subsidence.model)
-# write.csv(model2_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv', row.names = FALSE)
-predInt <- predictInterval(subsidence.model, newdata = subpointsC, n.sims = 100,
-                           returnSims = TRUE, level = 0.95)
+subsidence_model_ci <- extract_ci(subsidence_model)
+# write.csv(subsidence_model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv', row.names = FALSE)
+subsidence_model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv')
 
-subpoints.fit <- subpointsC %>%
-  cbind.data.frame(predInt) %>%
-  dplyr::select(-geometry)
-# write.csv(subpoints.fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
+r2 <- r.squaredGLMM(subsidence_model)
+
+# make confidence interval data frame for graphing
+ConfData <- expand.grid(time = 0:9,
+                        treatment3 = as.factor(1:4))
+
+myStats <- function(model){
+  out <- predict( model, newdata=ConfData, re.form=~0 )
+  return(out)
+}
+
+bootObj <- bootMer(subsidence_model, FUN=myStats, nsim = 1000)
+ConfData <- cbind(ConfData, predict(subsidence_model, newdata=ConfData, re.form=~0 )) %>%
+  cbind(confint( bootObj,  level=0.95 ))
+colnames(ConfData) <- c('time', 'treatment3', 'fit', 'lwr', 'upr')
+ConfData <- ConfData %>%
+  mutate(treatment = ifelse(treatment3 == 1,
+                            'Control',
+                            ifelse(treatment3 == 2,
+                                   'Air Warming',
+                                   ifelse(treatment3 == 3,
+                                          'Soil Warming',
+                                          'Air + Soil Warming'))))
+# write.csv(ConfData, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv', row.names = FALSE)
+
+subsidence_model_table <- data.frame(Response = c('Subsidence', rep(NA, 3)),
+                                   `Full Model` = c('Year*Treatment', rep(NA, 3)),
+                                   `Final Variables` = c('Control*Year', 'Air Warming*Year', 'Soil Warming*Year', 'Air + Soil Warming*Year'),
+                                   Coeficient = c(subsidence_model_ci$coefs[1], subsidence_model_ci$coefs[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `Min CI` = c(subsidence_model_ci$min[1], subsidence_model_ci$min[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `Max CI` = c(subsidence_model_ci$max[1], subsidence_model_ci$max[2], subsidence_model_ci$coefs[3], subsidence_model_ci$coefs[4]),
+                                   `R2 Marginal` = c(r2[1], rep(NA, 3)),
+                                   `R2 Conditional` = c(r2[2], rep(NA, 3)),
+                                   AIC = c(AIC(subsidence_model), rep(NA, 3)))
+# write.csv(subsidence_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/subsidence_model_table.csv', row.names = FALSE)
 ############################################################################################################
 
 ################################### Graphs #################################################################
-model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model.rds")
-subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv')
-model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects.csv')
+# data needed for graphs
+model2 <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/subsidence_model_nointercept.rds")
+subpoints.fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Fit_2018.csv') %>%
+  mutate(treatment = factor(as.character(treatment),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
+model2_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Subsidence_Coefficients_Mixed_Effects_nointercept.csv') %>%
+  mutate(diff = coefs - min)
 model2_r2 <- r.squaredGLMM(model2)
 
 # plots
@@ -450,43 +601,66 @@ g1
 # ggsave(plot = g1, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Plot_Subsidence_Ratio_Corrected_2018.pdf", height = 8, width = 12)
 
 # treatment level subsidence - How do you add confidence intervals for a mixed effects model?
-mixed.model.graph <- ggplot(subpoints.fit, aes(x = time, y = subsidence, colour = treatment)) +
-  geom_abline(intercept = model2_ci$coefs[1], slope = model2_ci$coefs[2], colour = '#006699') +
-  geom_abline(intercept=model2_ci[1,2], slope=model2_ci[2,2], colour="#006699", linetype="dashed") +
-  geom_abline(intercept=model2_ci[1,3], slope=model2_ci[2,3], colour="#006699", linetype="dashed") +
-  geom_abline(intercept = model2_ci$coefs[1] + model2_ci$coefs[4], slope = model2_ci$coefs[2] + model2_ci$coefs[3], colour = '#990000') +
-  geom_abline(intercept=model2_ci[1,2]+model2_ci[4,2], slope=model2_ci[2,2]+model2_ci[3,2], colour="#990000", linetype="dashed") +
-  geom_abline(intercept=model2_ci[1,3]+model2_ci[4,3], slope=model2_ci[2,3]+model2_ci[3,3], colour="#990000", linetype="dashed") +
+mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = full.treatment)) +
+  geom_ribbon(data = subpoints.fit, aes(x = time, ymin = lwr, ymax = upr, group = treatment, fill = treatment), inherit.aes = FALSE, alpha = 0.3) +
   geom_point(alpha = 0.5) +
-  scale_color_manual(values = c("#006699", "#990000"),
-                     labels = c('Control', 'Warming'),
+  geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
+  scale_color_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
+                     labels = c(paste('Control:  y = ', 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
+                                      'x', 
+                                      sep = ''), 
+                                paste('Air Warming:  y = ', 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
+                                      'x', 
+                                      sep = ''), 
+                                paste('Soil Warming:  y = ', 
+                                      round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
+                                      'x', 
+                                      sep = ''),
+                                paste('Air + Soil Warming:  y = ', 
+                                      round(model2_ci$coefs[1]*100, 2), 
+                                      'x', 
+                                      sep = '')),
                      name = '') +
-  scale_x_continuous(breaks = c(1, 3, 5, 7, 9),
-                     labels = c(2010, 2012, 2014, 2016, 2018),
+  scale_fill_manual(values = c("#006699", '#009900', "#990000", '#330000'),
+                    labels = c(paste('Control:  y = ', 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
+                                     'x', 
+                                     sep = ''), 
+                               paste('Air Warming:  y = ', 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
+                                     'x', 
+                                     sep = ''), 
+                               paste('Soil Warming:  y = ', 
+                                     round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
+                                     'x', 
+                                     sep = ''),
+                               paste('Air + Soil Warming:  y = ', 
+                                     round(model2_ci$coefs[1]*100, 2), 
+                                     'x', 
+                                     sep = '')),
                      name = '') +
-  scale_y_continuous(name = 'Subsidence (cm)',
-                     breaks = c(-0.75, -0.50, -0.25, 0.00),
-                     labels = c(-75, -50, -25, 0)) +
-  ggtitle('Subsidence (Relative to 2009)') +
+  scale_x_continuous(breaks = seq(0, 9),
+                     labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     name = '') +
+  scale_y_continuous(name = '\u0394 Elevation',
+                     breaks = seq(-0.9, 0.1, .1),
+                     labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
-  theme(axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
-        axis.title.y = element_text(size = 16),
-        axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 12),
-        title = element_text(size = 18),
-        plot.title = element_text(hjust = 0.5),
-        strip.text.x = element_text(size = 12),
-        strip.text.y = element_text(size = 12)) +
+  theme(text = element_text(size = 8),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
+        legend.justification=c(0, 0),
+        legend.position=c(0.01, 0.01),
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5)) +
   coord_fixed(ratio = 10) +
-  annotate('text', x = 7, y = 0.25, label = paste('y = ', round(model2_ci$coefs[1]*100, 2), ' + ', round(model2_ci$coefs[2]*100, 2), 'x', sep = ''), colour = "#006699") +
-  annotate('text', x = 1.7, y = -0.75, label = paste('y = ', round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), ' + ', round((model2_ci$coefs[2] + model2_ci$coefs[3])*100, 2), 'x', sep = ''), colour = "#990000") +
-  annotate('text', x = 1.05, y = 0.25, label = paste0("~R^2~c==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE)
+  annotate('text', x = 0.7, y = -0.7, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
 
 
-# geom_ribbon(data = model2_ci, aes(ymin = min[1] + min[2]*subpoints.fit$time, ymax = max[1] + max[2]*subpoints.fit$time), inherit.aes = FALSE, alpha = 0.3) +
 mixed.model.graph
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.jpg")
-# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018.pdf")
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.jpg", width = 95, height = 115, units = 'mm')
+# ggsave(plot = mixed.model.graph, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Plot_Subsidence_Mixed_Effects_2018_notitle.pdf", width = 95, height = 115, units = 'mm', device=cairo_pdf)
 
 # ALT vs. subsidence adjusted ALT by plot
 g2 <- ggplot(ALTsubgraph, aes(x = year, y = ALT, color = Measurement_Type)) +
@@ -513,14 +687,16 @@ g2
 # ggsave(plot = g2, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018.pdf", height = 8, width = 12)
 
 # ALT vs. subsidence adjusted ALT by treatment
-g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)) +
+g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
   geom_point(size = 2) +
   geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
-  scale_color_manual(values = c("#000000", "#ff0000"),
-                     labels = c('ALT', 'Subsidence Adjusted ALT')) +
+  scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#000000", "#ff0000"),
+                     labels = c('ALT', 'Subsidence Adjusted\nALT')) +
   scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
                      name = '') +
-  scale_y_continuous(name = 'ALT (cm)') +
+  scale_y_continuous(name = 'ALT (cm)',
+                     limits = c(-150, 0)) +
   facet_grid(. ~ treatment) +
   ggtitle('Original and Subsidence Adjusted ALT') +
   theme_few() +
@@ -529,49 +705,144 @@ g3 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = Measurement_Type)
         axis.title.y = element_text(size = 16),
         axis.text.y = element_text(size = 12),
         legend.text = element_text(size = 12),
-        title = element_text(size = 20),
+        title = element_text(size = 18),
         plot.title = element_text(hjust = 0.5),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12))
 g3
-# ggsave(plot = g3, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.jpg", height = 8, width = 12)
-# ggsave(plot = g3, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.pdf", height = 8, width = 12)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.jpg', plot = g3, height = 6, width = 8.5)
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Adjusted_ALT_Ratio_Corrected_2018_summary.pdf", plot = g3, height = 6, width = 8.5)
+
+# ALT vs. subsidence adjusted ALT by treatment
+gtest <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
+  geom_col(data = diff, aes(x = year, y = diff/-1), color = 'grey35', inherit.aes = FALSE) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5) +
+  geom_errorbar(data = diff, aes(x = year, ymin = (diff-Se.diff)/-1, ymax = (diff + Se.diff)/-1), inherit.aes = FALSE, width = 0.5, position = 'dodge') +
+  scale_color_manual(breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#000000", "#ff0000"),
+                     labels = c('Raw ALT', 'ALT + Subsidence')) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     name = '') +
+  scale_y_continuous(name = 'Subsidence Adjusted ALT (cm)',
+                     limits = c(-150, 5),
+                     breaks = c(-150, -125, -100, -75, -50, -25, 0),
+                     labels = c(-150, '', -100, '', -50, '', 0),
+                     sec.axis = sec_axis(~.*1, 
+                                         name = expression(Delta~Thawed~Carbon~(kg~C/m^2)),
+                                         labels = c(150, 100, 50, 0))) +
+  facet_grid(. ~ treatment) +
+  theme_few() +
+  theme(text = element_text(size = 8),
+        legend.title=element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
+        legend.justification=c(0,0),
+        legend.position=c(0.01,0.01),
+        plot.title = element_text(hjust = 0.5))
+
+gtest
+
+gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correction)) +
+  geom_col(data = avail_c, aes(x = year, y = totC/-2, fill = sub.correction), inherit.aes = FALSE, position = 'dodge') +
+  geom_point(size = 2, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = mean.ALT-se.ALT, ymax = mean.ALT+se.ALT), width = 0.5, position = position_dodge(width = 0.5)) +
+  geom_errorbar(data = avail_c, aes(x = year, ymin = (totC-Se)/-2, ymax = (totC + Se)/-2, group = sub.correction), inherit.aes = FALSE, width = 0.5, position = position_dodge(width = 1)) +
+  scale_color_manual(name = 'Permafrost Thaw',
+                     breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#666666", "#000000"),
+                     labels = c('ALT', 'SALT')) +
+  scale_fill_manual(name = 'Thawed C',
+                    breaks = c('Raw', 'Subsidence Adjusted'),
+                     values = c("#666666", "#000000"),
+                     labels = c('ALT', 'SALT')) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     name = '') +
+  scale_y_continuous(name = 'Permafrost Thaw (cm)',
+                     limits = c(-150, 5),
+                     breaks = c(-150, -125, -100, -75, -50, -25, 0),
+                     labels = c(-150, '', -100, '', -50, '', 0),
+                     sec.axis = sec_axis(~.*2, 
+                                         name = expression(Thawed~Carbon~(kg~C/m^2)),
+                                         breaks = c(-300, -250, -200, -150, -100, -50, 0),
+                                         labels = c(300, '', 200, '', 100, '', 0))) +
+  facet_grid(. ~ treatment) +
+  theme_few() +
+  guides(color = guide_legend(order = 2),
+         fill = guide_legend(order = 1)) +
+  theme(text = element_text(size = 8),
+        strip.text.x = element_text(color = 'black'),
+        legend.title = element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
+        legend.justification=c(0,0),
+        legend.position=c(0.01,0.01),
+        legend.box = 'horizontal',
+        plot.title = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"))
+gtest2
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 6, width = 9.5)
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 6, width = 9.5)
+
 
 # soil profile graphs
 # colors needed
-color.names <- c('Subsidence', 'Active Layer Thickness', 'Water Table Depth', 'Permafrost')
-color <- c('Permafrost' = '#666666', 'Active Layer Thickness' = '#996633', 'Water Table Depth' = '#006699', 'Subsidence' = '#FFFFFF')
+names <- c('Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
+color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
 
 # Cross section of soil for control and warming
+treat_labels <- c(Control = 'Control',
+                  Warming = 'Soil Warming')
 g4 <- ggplot(ALTsub.summary, aes(x = year)) +
-  facet_grid(. ~ treatment) +
-  geom_ribbon(aes(ymin = subsidence, ymax = 0, fill = 'Subsidence')) +
-  geom_ribbon(aes(ymin = -175, ymax = ALT, fill = 'Permafrost'), 
+  facet_grid(. ~ treatment, labeller = labeller(treatment = treat_labels)) +
+  geom_ribbon(aes(ymin = mean.subsidence, ymax = 0),
+              fill = 'white') +
+  geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost'),
+              linetype = 1,
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence, fill = 'Active Layer Thickness'), 
+  geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer'),
+              linetype = 1,
               colour = 'black') +
-  geom_ribbon(aes(ymin = ALT, ymax = subsidence + WTD, fill = 'Water Table Depth'), 
+  geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
+              linetype = 1,
               colour = 'black') +
-  geom_path(aes(y = subsidence), size = 0.5) +
+  geom_line(aes(y = mean.ALT),
+            linetype = 3,
+            color = 'black',
+            size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
+  geom_line(aes(y = mean.subsidence), size = 1)+
+  geom_line(aes(y = mean.ALT.corrected), size = 1) +
+  geom_errorbar(aes(ymin = mean.subsidence - se.subsidence, ymax = mean.subsidence + se.subsidence), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.subsidence + mean.WTD - se.WTD, ymax = mean.subsidence + mean.WTD + se.WTD), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.ALT - se.ALT, ymax = mean.ALT + se.ALT), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.ALT.corrected - se.ALT.corrected, ymax = mean.ALT.corrected + se.ALT.corrected), width = 0.2, colour = 'grey50') +
   scale_fill_manual(name = '',
                     values = color,
-                    breaks = color.names) +
-  scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018),
+                    breaks = names) +
+  scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
+                     labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      limits = c(2009, 2018),
                      expand = c(0,0),
                      name = '') +
-  scale_y_continuous(limits = c(-175, 10),
+  scale_y_continuous(limits = c(-160, 5),
+                     breaks = c(0, -25, -50, -75, -100, -125, -150),
+                     labels = c(0, '', -50, '', -100, '', -150),
                      expand = c(0,0),
                      name = 'Depth (cm)') +
   theme_few() +
-  theme(strip.text.x = element_text(size = 12),
-        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12))
+  theme(text = element_text(size = 8),
+        strip.text.x = element_text(color = 'black'),
+        axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5),
+        legend.justification=c(0,0),
+        legend.position=c(0,0),
+        legend.background = element_rect(color="grey30", size=.5),
+        legend.title = element_blank(),
+        panel.spacing = unit(1, "lines"))
 
 g4
 
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.jpg")
-# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018.pdf")
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018_notitle.jpg", height = 150, width = 190, units = 'mm')
+# ggsave(plot = g4, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Sub_ALT_WTD_Profile_Ratio_Corrected_2018_notitle.pdf", height = 150, width = 190, units = 'mm')
 
 # Cross section of soil by fence
 g5 <- ggplot(ALTsub_fence, aes(x = year)) +
@@ -604,19 +875,27 @@ g5
 
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.jpg")
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.pdf")
-cols <- c("LINE1"="#f04546","LINE2"="#3591d1","BAR"="#62c76b")
-ggplot(data=data,aes(x=a)) + 
-  geom_bar(stat="identity", aes(y=h, fill = "BAR"),colour="#333333")+ #green
-  geom_line(aes(y=b,group=1, colour="LINE1"),size=1.0) +   #red
-  geom_point(aes(y=b, colour="LINE1"),size=3) +           #red
-  geom_errorbar(aes(ymin=d, ymax=e, colour="LINE1"), width=0.1, size=.8) + 
-  geom_line(aes(y=c,group=1,colour="LINE2"),size=1.0) +   #blue 
-  geom_point(aes(y=c,colour="LINE2"),size=3) +           #blue
-  geom_errorbar(aes(ymin=f, ymax=g,colour="LINE2"), width=0.1, size=.8) + 
-  scale_colour_manual(name="Error Bars",values=cols) + scale_fill_manual(name="Bar",values=cols) +
-  ylab("Symptom severity") + xlab("PHQ-9 symptoms") +
-  ylim(0,1.6) +
-  theme_bw() +
-  theme(axis.title.x = element_text(size = 15, vjust=-.2)) +
-  theme(axis.title.y = element_text(size = 15, vjust=0.3))
+
+g6 <- ggplot(ALTsub.summary, aes(x = mean.ALT.corrected*-1, y = mean.subsidence, colour = treatment)) +
+  geom_point() +
+  scale_color_manual(values = c("#006699", "#990000"),
+                     labels = c('Control', 'Warming'),
+                     name = '') +
+  scale_x_continuous(name = 'ALT (cm)') +
+  scale_y_continuous(name = 'Subsidence (cm)') +
+  ggtitle('Relationship Between ALT and Subsidence') +
+  theme_few() +
+  theme(legend.title=element_blank(),
+        axis.text.x  = element_text(size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 18),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12))
+g6
+
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.jpg", height = 4, width = 7)
+# ggsave(plot = g6, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ALT_Subsidence_Relationship.pdf", height = 4, width = 7)
 ############################################################################################################

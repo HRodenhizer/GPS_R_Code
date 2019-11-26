@@ -3,30 +3,17 @@
 ###                 Code by HGR 2017                                                 ###
 ########################################################################################
 
-#Required packages to run the following code
-#library(sp)
-#library(rgdal)
-#library(raster)
-#library(dplyr)
-#library(stringr)
-
 ###Required packages to do this with tidyverse
 library(sf)
 library(tidyverse)
 library(viridis)
-library(rvest)
 library(ggplot2)
 library(readxl)
 library(sp)
 library(rgdal)
 library(gstat)
 library(raster)
-library(ggmap)
-library(rasterVis)
 library(ggthemes)
-library(ggsn)
-library(gridExtra)
-library(cowplot)
 
 ############## Load most recent gps file and 2017 elevation surface ###################
 Points2018 <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2018_SPCSAK4.shp")
@@ -42,7 +29,7 @@ C2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GP
 points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points.shp") %>%
   mutate(Elevation = Elevation-12.741669,
          GlobalElli = GlobalElli-12.741669)
-st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points_v2.shp")
+# st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points_v2.shp")
 
 ##############################Select data by block##############################
 #2018
