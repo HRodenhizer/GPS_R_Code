@@ -15,28 +15,28 @@ library(readxl)
 ### Load Data ########################################################################################################
 points2008 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/TowerFootprint_2008_2009/tower2008.shp')
 points2017 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2017_SPCSAK4.shp')
-points2019 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_08_2019_SPCSAK4.shp')
+points2019 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2019_Aug_SPCSAK4.shp')
 td2017 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2017 GPS/ALT_Measurements.xlsx')
 td2019 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2019 GPS/ec_tower_alt_20190810.xlsx')
-dtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTM_ellipsoid_issue_corrected.tif')
-test <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7085000_DTM.tif')
+dtm2017 <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/DTM_All/NEON_DTM_2017.tif')
 ######################################################################################################################
 
 ### Standardize coordinate systems and select ec tower points only ###################################################
 # Verticle transformation of 2008 is complex
 # -14.58 is the height of geoid 99. I think this value was applied to a height that was already orthometric during the original processing
-# therefore, I add 14.58 to undo the extra one and get an orthometric height (in geoid 99? - or in geoid 09?)
-# +0.581 is applied as the offset in the recorded base station height between early years and later years
-# -0.05 is the conversion from geoid 09 to geoid 12B
-# -0.439 is the offset between the WGS84 (G1150) and NAD83(11) ellipsoids
-# +1.81 is the conversion from geoid 99 to geoid 12B
-# total offset is 15.37 - but this means that absolutely everywhere subsided by 0.9-1.4 m...
+# It seems like this could have happened if the the value entered for the base station was actually an orthometric height
+# but was marked as an ellipsoidal height.
+# Therefore, the following conversions need to be applied to the 2008 file:
+# +14.58 to undo the extra conversion and get an orthometric height (in geoid 99)
+# +1.81 to convert from geoid 99 to geoid 12B
+# -2.0786 to fix the offset in the recorded base station height between 2008 and later years
+# total offset is 14.3081
 tower2008 <- points2008 %>%
   filter(Lat != 0) %>%
   st_transform(crs = crs(points2017)) %>%
   mutate(Easting = st_coordinates(.)[,1],
          Northing = st_coordinates(.)[,2],
-         Elevation = st_coordinates(.)[,3] + 15.111,
+         Elevation = st_coordinates(.)[,3] + 14.3081,
          ALT = dp_avg) %>%
   st_drop_geometry() %>%
   st_as_sf(coords = c('Easting', 'Northing', 'Elevation'), remove = FALSE) %>%
@@ -134,9 +134,9 @@ tower_raster <- map(
     mask(ec_mask)
 )
 
-plot(tower_raster[[1]][[1]])
-plot(tower_raster[[2]][[1]])
-plot(tower_raster[[3]])
+plot(tower_raster[[1]][[1]]) # 2008
+plot(tower_raster[[2]][[1]]) # 2017
+plot(tower_raster[[3]]) # 2019
 
 sub17 <- tower_raster[[2]][[1]] - tower_raster[[1]][[1]]
 sub19 <- tower_raster[[3]][[1]] - tower_raster[[1]][[1]]
@@ -149,7 +149,7 @@ plot(tower_sp[[1]], add = TRUE, col = 'red')
 plot(tower_sp[[2]], add = TRUE, col = 'blue')
 plot(tower_sp[[3]], add = TRUE, col = 'green')
 
-dtm_mask <- dtm %>%
+dtm_mask <- dtm2017 %>%
   projectRaster(ec_mask) %>%
   mask(ec_mask)
 
