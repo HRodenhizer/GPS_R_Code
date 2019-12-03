@@ -6,7 +6,7 @@
 ### Load Libraries ###################################################################################################
 library(sf)
 library(sp)
-library(automap)
+library(measurements)
 library(raster)
 library(readxl)
 library(tidyverse)
@@ -28,6 +28,8 @@ td2017 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/
 td2019 <- read_excel('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2019 GPS/ec_tower_alt_20190810.xlsx')
 dtm2017 <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/DTM_All/NEON_DTM_2017.tif')
 st_crs(points2008) <- st_crs(points2017)
+ec_mask <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Tower_Analyses/ec_tower_mask')
+eml_bnd <- as(st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/EML_Bnd.shp"), 'Spatial')
 ######################################################################################################################
 
 ### Test 2008 points in different coordinate systems #################################################################
@@ -58,12 +60,12 @@ ggplot(points2008_spcs, aes(x = Lat, y = Long)) +
 
 ### Standardize coordinate systems and select ec tower points only ###################################################
 # Verticle transformation of 2008 is complex
-# -14.58 is the height of geoid 99. I think this value was applied to a height that was already orthometric during the original processing
+# -14.5771 is the height of geoid 99. I think this value was applied to a height that was already orthometric during the original processing
 # It seems like this could have happened if the the value entered for the base station was actually an orthometric height
 # but was marked as an ellipsoidal height.
 # Therefore, the following conversions need to be applied to the 2008 file:
-# +14.58 to undo the extra conversion and get an orthometric height (in geoid 99)
-# +1.81 to convert from geoid 99 to geoid 12B
+# +14.5771 to undo the extra conversion and get an orthometric height (in geoid 99)
+# +1.8096 to convert from geoid 99 to geoid 12B
 # -2.0786 to fix the offset in the recorded base station height between 2008 and later years
 # total offset is 14.3081
 tower2008 <- points2008 %>%
@@ -101,7 +103,9 @@ tower2019 <- points2019 %>%
                      as.numeric(as.character(Name)) - 13999),
          ALT = alt) %>%
   select(id, ALT, Easting, Northing, Elevation)
+#####################################################################################################################
 
+### Check impact of different point locations in different years ####################################################
 # compare height as average of point by point
 tower_comparison <- tower2008 %>%
   mutate(year = 2008) %>%
@@ -169,12 +173,69 @@ ggplot(tower_comparison_3, aes(x = Easting, y = Northing, color = dist_19)) +
 ggplot(tower_comparison_3, aes(x = Easting, y = Northing, color = dist_17_19)) +
   geom_point() +
   scale_color_viridis()
+
+# can I estimate the amount of vertical difference between 2017 and 2019 based on the distance between points?
+# plot difference between 2017 and 2019 points
+ggplot(tower2017, aes(x = Easting, y = Northing)) +
+  geom_point() +
+  geom_point(data = tower2019, aes(x = Easting, y = Northing), color = 'red', inherit.aes = FALSE)
+
+# in radians:
+dtm_crop <- projectRaster(crop(dtm2017, extent(c(389100, 389900, 7084900, 7086000))), crs = st_crs(points2017)$proj4string)
+slope2017 <- terrain(dtm_crop, opt = 'slope', neighbors = 4)
+aspect2017 <- terrain(dtm_crop, opt = 'aspect', neighbors = 4)
+
+plot(dtm_crop)
+plot(slope2017)
+plot(aspect2017)
+
+# need to calculate direction between 2017 and 2019 points using tan-1((x1-x2)/(y1-y2))
+direction <- tower2017 %>%
+  filter(id != 227) %>%
+  st_drop_geometry() %>%
+  rename(ALT_08 = ALT, Easting_17 = Easting, Northing_17 = Northing, Elevation_17 = Elevation) %>%
+  cbind.data.frame(
+    tower2019 %>%
+      filter(id %in% tower2017$id) %>%
+      st_drop_geometry %>%
+      select(-id) %>%
+      rename(ALT_19 = ALT, Easting_19 = Easting, Northing_19 = Northing, Elevation_19 = Elevation)
+  ) %>%
+  mutate(direction = ifelse(Northing_17 > Northing_19 & Easting_17 > Easting_19,
+                            atan(abs(Easting_19 - Easting_17)/abs(Northing_19 - Northing_17)),
+                            0.5*pi + atan(abs(Northing_19 - Northing_17)/abs(Easting_19 - Easting_17)))) %>%
+  select(id, direction)
+
+# then calculate height difference between points which is due to the slope of the hill
+tower_comparison_4 <- tower_comparison_3 %>%
+  mutate(slope_extract = raster::extract(slope2017, ., df = TRUE)$slope,
+         aspect_extract = raster::extract(aspect2017, ., df = TRUE)$aspect) %>%
+  full_join(direction, by = 'id') %>%
+  mutate(angle = ifelse(aspect_extract <= pi,
+                        abs(aspect_extract - direction),
+                        2*pi - abs(aspect_extract - direction)),
+         elev_diff = dist_17_19*cos(angle)*tan(slope_extract))
+
+# stats about shift needed in 2017 due to different elevation point locations
+min_shift <- min(tower_comparison_4$elev_diff)
+max_shift <- max(tower_comparison_4$elev_diff)
+mean_shift <- mean(tower_comparison_4$elev_diff)
+
+# remake 2017 file with corrected elevation points
+tower2017_redo <- tower2017 %>%
+  right_join(
+    tower_comparison_4 %>%
+      st_drop_geometry() %>%
+      select(id, elev_diff),
+    by = 'id'
+  ) %>%
+  mutate(Elevation = Elevation + elev_diff)
 ######################################################################################################################
 
 ### Create a list of files and krige elevation surfaces ##############################################################
 tower <- list(
   tower2008,
-  tower2017,
+  tower2017_redo,
   tower2019
 )
 
@@ -206,13 +267,17 @@ tower_model <- map(
               grid)
 )
 
-# make a mask of the tower footprint
-ec_mask <- raster(tower_model[[1]]$krige_output[2])
-plot(ec_mask)
-ec_mask[ec_mask > 0.043] <- NA
-ec_mask[ec_mask <= 0.043] <- 1
-plot(ec_mask)
-plot(tower_sp[[1]], add = TRUE)
+# # make a mask of the tower footprint
+# ec_mask <- raster(tower_model[[1]]$krige_output[2])
+# plot(ec_mask)
+# ec_mask[ec_mask > 0.043] <- NA
+# ec_mask[ec_mask <= 0.043] <- 1
+# plot(ec_mask)
+# plot(tower_sp[[1]], add = TRUE)
+
+# # save mask for use later
+# writeRaster(ec_mask, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Tower_Analyses/ec_tower_mask')
+
 # convert elevation surfaces to raster
 tower_raster <- map(
   tower_model,
@@ -266,19 +331,41 @@ base_height <- raster::extract(dtm2017, filter(points2019, Name == 'base') %>% s
 correction <- base_height - filter(points2019, Name == 'base')$Elevation
 ######################################################################################################################
 
+direction_raster <- mask(
+  brick(
+    autoKrige(
+      direction ~ 1,
+      as(tower_comparison_4, 'Spatial'),
+      grid
+    )$krige_output
+  ), 
+  ec_mask
+)
 
-# can I estimate the amount of vertical difference between 2017 and 2019 based on the distance between points?
-# in radians:
-slope2017 <- mask(terrain(raster(tower_model[[2]][[1]]), opt = 'slope', neighbors = 4), ec_mask)
-aspect2017 <- mask(terrain(raster(tower_model[[2]][[1]]), opt = 'aspect', neighbors = 4), ec_mask)
+angle_raster <- mask(
+  brick(
+    autoKrige(
+      angle ~ 1,
+      as(tower_comparison_4, 'Spatial'),
+      grid
+    )$krige_output
+  ), 
+  ec_mask
+)
 
-plot(tower_raster[[2]][[1]])
-plot(slope2017)
-plot(aspect2017)
+shift_raster <- mask(
+  brick(
+    autoKrige(
+      elev_diff ~ 1,
+      as(tower_comparison_4, 'Spatial'),
+      grid
+    )$krige_output
+  ), 
+  ec_mask
+)
 
-# need to calculate direction between 2017 and 2019 points using tan-1((y1 - y)/(x1-x))
-# then figure out how to caculate the slope in the right direction using the slope and aspect of the cell
-# then calculate the height 
-tower_comparison_4 <- tower_comparison_3 %>%
-  mutate(slope_extract = raster::extract(slope2017, ., df = TRUE)$slope,
-         aspect_extract = raster::extract(aspect2017, ., df = TRUE)$aspect)
+plot(crop(slope2017, ec_mask))
+plot(crop(aspect2017, ec_mask))
+plot(direction_raster[[1]])
+plot(angle_raster[[1]])
+plot(shift_raster[[1]])
