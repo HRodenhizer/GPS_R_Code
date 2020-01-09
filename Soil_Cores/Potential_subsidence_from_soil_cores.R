@@ -51,7 +51,7 @@ water_wells <- water_wells %>%
          Northing = coords[,2])
 # Load ALT
 ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', 
-                     header = TRUE, sep = '/t')
+                     header = TRUE, sep = '\t')
 # find elevation files in directory
 filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
                         full.names = TRUE, pattern = '^.*.tif$')
@@ -216,6 +216,16 @@ moisture_loss <- moisture %>%
   mutate(moisture.height = (moisture/1000*bulk.density*height/0.92)/(1 - moisture/1000)*10^-2, # output in m
          cumulative.moisture.height = cumsum(moisture.height)) %>%
   arrange(block, fence, treatment, alt.year)
+
+# test out adjusting for estimated pore ice content (pore ice doesn't take up volume that would be lost and result in subsidence upon thaw)
+# using the estimate that pore volume is equal to soil volume in silt loam
+# not enough water to have excess ice according to this estimate...
+pore_ice_height <- moisture_loss %>%
+  mutate(pore.ice.height = (soil.stock/1000)/bulk.density, # output in m
+         ice.height.no.pore.ice = ifelse(moisture.height*1.09 > pore.ice.height,
+                                         moisture.height*1.09 - pore.ice.height,
+                                         0),
+         cumulative.ice.height = cumsum(ice.height.no.pore.ice))
 
 # write.csv(moisture_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
 
