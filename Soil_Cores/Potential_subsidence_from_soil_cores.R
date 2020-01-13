@@ -199,7 +199,7 @@ soil_stock <- soil_09 %>%
 
 core.area <- 45.3646
 
-moisture_loss <- moisture %>%
+ice_loss <- moisture %>%
   cbind.data.frame(select(soil_stock, soil.stock)) %>%
   group_by(block, fence, treatment) %>%
   mutate(depth0 = new.depth0,
@@ -219,9 +219,8 @@ moisture_loss <- moisture %>%
 
 # test out adjusting for estimated pore ice content (pore ice doesn't take up volume that would be lost and result in subsidence upon thaw)
 # using the estimate that soil volume is 50% pore space in silt loam (i.e. 50% of soil volume can be filled with water)
-# not enough water to have excess ice according to this estimate...
 # also estimate bulk density if all volume of ice is removed to compare to theoretical bulk densities (rock = 2.65 g cm^-3, silt loam soil = 1.33 g cm^-3)
-pore_ice_height <- moisture_loss %>%
+pore_ice_height <- ice_loss %>%
   mutate(core.volume = (depth1 - depth0)*core.area*10^-6, # m^3,
          ice.volume = ice.height*core.area*10^-4, # m^3
          soil.volume = (core.volume - ice.volume)*2, # m^3
@@ -238,18 +237,20 @@ pore_ice_height <- moisture_loss %>%
 mean(pore_ice_height$bulk.density, na.rm = TRUE)
 mean(pore_ice_height$bulk.density.2, na.rm = TRUE)
 
-# write.csv(moisture_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
+# write.csv(ice_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
 
-ggplot(moisture_loss, aes(x = height/100, y = ice.height)) +
+ggplot(ice_loss, aes(x = height/100, y = ice.height)) +
   geom_point()
 
-ggplot(moisture_loss, aes(x = moisture/1000, y = ice.height)) +
+ggplot(ice_loss, aes(x = moisture/1000, y = ice.height)) +
   geom_point()
 
-mean.sub <- moisture_loss %>%
+mean.sub <- pore_ice_height %>%
   group_by(alt.year, treatment) %>%
   summarise(mean.ice.sub = mean(cumulative.ice.height, na.rm = TRUE),
-            se.ice.sub = sd(cumulative.ice.height, na.rm = TRUE)/sqrt(n()))
+            se.ice.sub = sd(cumulative.ice.height, na.rm = TRUE)/sqrt(n()),
+            mean.potential.sub = mean(potential.sub, na.rm = TRUE),
+            se.potential.sub = sd(potential.sub, na.rm = TRUE)/sqrt(n()))
 ####################################################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
@@ -318,14 +319,14 @@ ww_sub <- map2_dfr(sub13_18,
 
 # add location to the potential subsidence data frame and compare with gps subsidence
 # temporarilt switch input from moisture_height to pore_ice_height to test relationship between sub and ice height without pore ice input
-moisture_loss_2 <- pore_ice_height %>%
+ice_loss_2 <- pore_ice_height %>%
   left_join(ww2009, by = c('block', 'fence', 'treatment')) %>%
   st_as_sf() %>%
   left_join(ww_sub, by = c('block', 'well.id', 'alt.year')) %>%
   st_as_sf() %>%
   ungroup() %>%
-  mutate(cumulative.ice.height = cumulative.ice.height*-1,
-         diff = cumulative.ice.height - sub,
+  mutate(ice.height.diff = cumulative.ice.height - sub*-1,
+         potential.sub.diff = potential.sub - sub*-1,
          time = alt.year-2009,
          block2 = as.factor(block),
          fence2 = as.factor(ifelse(fence == 1 | fence == 3 | fence == 5,
@@ -338,28 +339,36 @@ moisture_loss_2 <- pore_ice_height %>%
          wholeplot = factor(block2:fence2:treatment2))
 
 # how does the relationship between ice height without pore ice and subsidence look?
-ggplot(moisture_loss_2, aes(x = potential.sub, y = sub)) +
+ggplot(ice_loss_2, aes(x = potential.sub, y = sub)) +
   geom_point()
 
-avg_moisture_loss <- moisture_loss_2 %>%
+# relationship between total ice height and subsidence
+ggplot(ice_loss_2, aes(x = cumulative.ice.height, y = sub)) +
+  geom_point()
+
+avg_ice_loss <- ice_loss_2 %>%
   st_drop_geometry() %>%
   group_by(alt.year, treatment) %>%
-  summarise(difference = mean(diff, na.rm = TRUE),
-            mean.ice.sub = mean(cumulative.ice.height, na.rm = TRUE),
-            se.ice.sub = sd(cumulative.ice.height, na.rm = TRUE)/sqrt(n()),
+  summarise(mean.ice.height.diff = mean(ice.height.diff, na.rm = TRUE),
+            mean.potential.sub.diff = mean(potential.sub.diff, na.rm = TRUE),
+            mean.ice.height = mean(cumulative.ice.height, na.rm = TRUE),
+            mean.potential.sub = mean(potential.sub, na.rm = TRUE),
             mean.gps.sub = mean(sub, na.rm = TRUE),
-            se.ice.sub = sd(sub, na.rm = TRUE)/sqrt(n()))
+            se.ice.height.sub = sd(cumulative.ice.height, na.rm = TRUE)/sqrt(n()),
+            se.potential.sub = sd(potential.sub, na.rm = TRUE)/sqrt(n()),
+            se.gps.sub = sd(sub, na.rm = TRUE)/sqrt(n()))
 
+# model with total ice height
 model1 <- lmer(sub ~ cumulative.ice.height + treatment2 +
                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = moisture_loss_2,
+               data = ice_loss_2,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model1)
 
 model2 <- lmer(sub ~ cumulative.ice.height +
                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = moisture_loss_2,
+               data = ice_loss_2,
                control=lmerControl(check.conv.singular="warning"))
 
 summary(model2)
@@ -385,7 +394,7 @@ hist(subpointsC$subsidence)
 # re-run better model with REML = TRUE
 model <- lmer(sub ~ cumulative.ice.height +
                 (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
-              data = moisture_loss_2,
+              data = ice_loss_2,
               control=lmerControl(check.conv.singular="warning"))
 summary(model)
 r.squared <- r.squaredGLMM(model)
@@ -400,17 +409,18 @@ model_ci <- extract_ci(model)
 # write.csv(model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv', row.names = FALSE)
 model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv')
 
-predInt <- predictInterval(model, newdata = moisture_loss_2, n.sims = 1000,
+predInt <- predictInterval(model, newdata = ice_loss_2, n.sims = 1000,
                            returnSims = TRUE, level = 0.95)
 
-moisture_loss_fit <- moisture_loss_2 %>%
+ice_loss_fit <- ice_loss_2 %>%
   cbind.data.frame(predInt) %>%
   dplyr::select(-geometry)
-# write.csv(moisture_loss_fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
+# write.csv(ice_loss_fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
+ice_loss_fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv')
 
 # make confidence interval data frame for graphing
-ConfData <- data.frame(cumulative.ice.height = seq(min(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE),
-                                                        max(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE),
+ConfData <- data.frame(cumulative.ice.height = seq(min(ice_loss_fit$cumulative.ice.height, na.rm = TRUE),
+                                                        max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE),
                                                         length.out = 10))
 myStats <- function(model){
   out <- predict( model, newdata=ConfData, re.form=~0 )
@@ -422,20 +432,47 @@ ConfData <-  cbind( ConfData, confint( bootObj,  level=0.95 ))
 
 colnames(ConfData) <- c('cumulative.ice.height', 'lwr', 'upr')
 
-ice.loss <- ggplot(moisture_loss_fit, aes(x = cumulative.ice.height*-1, y = sub, colour = treatment)) +
-  geom_ribbon(data = ConfData, aes(x = cumulative.ice.height*-1, ymin = lwr, ymax = upr), inherit.aes = FALSE, alpha = 0.3) +
+# model with potential sub calculated with excess ice and frost heave in pore spaces
+model1 <- lmer(sub ~ potential.sub + treatment2 +
+                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+               data = ice_loss_2,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model1)
+
+model2 <- lmer(sub ~ potential.sub +
+                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+               data = ice_loss_2,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model2)
+
+model3 <- lmer(sub ~ 1 +
+                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+               data = ice_loss_2,
+               control=lmerControl(check.conv.singular="warning"))
+
+summary(model3)
+
+# potential subsidence from excess ice and pore space frost heave does not predict observed subsidence
+AICc(model1, model2, model3)
+
+
+# continue with total ice height
+ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour = treatment)) +
+  geom_ribbon(data = ConfData, aes(x = cumulative.ice.height, ymin = lwr, ymax = upr), inherit.aes = FALSE, alpha = 0.3) +
   geom_point() +
-  geom_segment(aes(x = min(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE)*-1, 
-                   y = model_ci$coefs[1] + model_ci$coefs[2]*min(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE), 
-                   xend = max(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE)*-1, 
-                   yend = model_ci$coefs[1] + model_ci$coefs[2]*max(moisture_loss_fit$cumulative.ice.height, na.rm = TRUE)),
+  geom_segment(aes(x = min(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
+                   y = model_ci$coefs[1] + model_ci$coefs[2]*min(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
+                   xend = max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
+                   yend = model_ci$coefs[1] + model_ci$coefs[2]*max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE)),
                colour = 'black') +
   scale_x_continuous(name = 'Ice Height (m)') +
   scale_y_continuous(name = expression("Measured "*Delta*" Elevation (m)")) +
   annotate(geom = 'text', 
            x = 0.4125, 
            y = 0.05, 
-           label = paste('y = ', round(model_ci$coefs[1], 3), ' - ', round(model_ci$coefs[2], 3), 'x', sep = ''),
+           label = paste('y = ', round(model_ci$coefs[1], 3), ' - ', round(model_ci$coefs[2], 3)*-1, 'x', sep = ''),
            size = 2.5) +
   annotate(geom = 'text',
            x = 0.46,
@@ -499,7 +536,7 @@ C.lwr.bd.upr.9 <- C.lwr.bd.upr.rate*9
 C.upr.bd.lwr.9 <- C.upr.bd.lwr.rate*9
 C.lwr.bd.lwr.9 <- C.lwr.bd.lwr.rate*9
 
-avg.sub.2018 <- moisture_loss_2 %>%
+avg.sub.2018 <- ice_loss_2 %>%
   st_drop_geometry() %>%
   ungroup() %>%
   filter(alt.year == 2018) %>%
