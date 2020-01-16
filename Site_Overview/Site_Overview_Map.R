@@ -32,7 +32,7 @@ emldtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remo
 # rm(filenames)
 ##############################################################################################################
 
-### Select/clip to CiPEHR ####################################################################################
+### Select/clip to CiPEHR and normalize data to each block ###################################################
 ### save crs to use for all data
 spcsak4 <- st_crs(points2018)[[2]]
 
@@ -60,7 +60,10 @@ coords_bbox <- transects2018 %>%
   summarise(xmin = min(X),
             xmax = max(X),
             ymin = min(Y),
-            ymax = max(Y)) %>%
+            ymax = max(Y))
+
+# create a buffered polygon for clipping images
+coords_buffer <- coords_bbox %>%
   mutate(xdist = xmax - xmin,
          ydist = ymax - ymin,
          xmin = ifelse(xdist < 50, # adjust the min and max coordinates out to include an entire 50 meter distance in both x and y directions
@@ -81,18 +84,39 @@ coords_bbox <- transects2018 %>%
   gather(key = 'y.min.max',
          value = 'y',
          ymin:ymax) %>%
-  arrange(block, x, y) %>%
+  arrange(block) %>%
   select(-x.min.max, -y.min.max, - xdist, -ydist) %>%
   st_as_sf(coords = c('x', 'y'), crs = spcsak4, remove = FALSE)
 
 # data frame with min coordinates
 # used to normalize all block data
-coords_norm <- coords_bbox %>%
+coords_min <- coords_buffer %>%
   st_drop_geometry() %>%
   group_by(block) %>%
   summarise(xmin = min(x),
             ymin = min(y))
 
+# create a data frame with the transect corner points normalized
+coords_norm <- coords_bbox %>%
+  gather(key = 'x.min.max',
+         value = 'x',
+         xmin:xmax) %>%
+  gather(key = 'y.min.max',
+         value = 'y',
+         ymin:ymax) %>%
+  arrange(block) %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(x - xmin),
+         y = round(y - ymin),
+         order = rep(c(1, 2, 4, 3), 3)) %>%
+  arrange(block, order) %>%
+  select(block, x, y) %>%
+  group_by(block) %>%
+  rbind.data.frame(filter(., x == first(x) & y == first(y))) %>%
+  arrange(block)
+
+coords_list <- map(blocks,
+                   ~ filter(coords_norm, block == .x))
 
 ### create data frame with tower and block locations
 # start getting three block locations
@@ -158,6 +182,7 @@ rm(emlhillshd, emldtm)
 blockimagery <- readRDS('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/blockimagery.rds')
 
 # convert blockimagery to dataframe, normalize, and convert back to raster
+blocks <- list('A', 'B', 'C')
 blockimagery_df_norm <- map2(blockimagery,
                             blocks,
                            ~ as(.x, 'SpatialPixelsDataFrame') %>%
@@ -182,159 +207,61 @@ for (i in 1:length(blockimagery_df_norm)) {
   blockimagery_norm[[i]] <- brick(temp1, temp2, temp3)
   rm(temp1, temp2, temp3)
 }
+
+
+### normalize fence and core data
+# format the labels for the fences
+fences_norm <- fences %>%
+  mutate(fence = as.numeric(Id),
+         block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence >= 5,
+                               'C',
+                               'B')))
+
+# extract the fence coordinates from the geometry column
+fence_coords <- as.data.frame(st_coordinates(fences_norm)) %>%
+  rename(Id = L1)
+
+# join the coordinates to the fence dataset, join the min x and y values for each block, and set each SW corner of the block to the coords 0,0
+fences_norm <- fences_norm %>%
+  st_drop_geometry() %>%
+  full_join(fence_coords, by = c('Id')) %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(X - xmin),
+         y = round(Y - ymin)) %>%
+  select(block, fence, x, y)
+
+# make a list with the fence information for each block
+fences_list <- map(blocks,
+                   ~filter(fences_norm, block == .x))
+
+# format the core data
+cores_norm <- cores %>%
+  separate(Name, into = c('fence', 'plot')) %>%
+  mutate(fence = as.numeric(str_sub(fence, start = 3)),
+         block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence >= 5,
+                               'C',
+                               'B')),
+         treatment = ifelse(plot <= 2,
+                            'Control',
+                            'Warming')) %>%
+  st_zm() %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(Easting - xmin),
+         y = round(Northing - ymin)) %>%
+  select(block, fence, plot, treatment, x, y)
+
+cores_list <- map(blocks,
+                  ~filter(cores_norm, block == .x))
 ##############################################################################################################
 
 ### Plot block location over hillshade #######################################################################
-# better to have 2009 and 2018 separate or together? Is it worth using the imagery? It looks really busy.
-# emlimageA <- ggRGB(blockimagery[[1]], r = 1, g = 2, b = 3, stretch = 'lin', alpha = 0.7)
-# emlimageB <- ggRGB(blockimagery[[2]], r = 1, g = 2, b = 3, stretch = 'lin', alpha = 0.7)
-# emlimageC <- ggRGB(blockimagery[[3]], r = 1, g = 2, b = 3, stretch = 'lin', alpha = 0.7)
-
 emlimages <- map(blockimagery_norm,
                  ~ggRGB(.x, r = 1, g = 2, b = 3, stretch = 'lin', alpha = 0.7))
 
-# A2009 <- emlimageA +
-#   geom_point(data = subset(transects2016, block == 'A'), aes(x = X, y = Y, color = '2016'), inherit.aes = FALSE, size = 1) +
-#   geom_point(data = subset(transects2015, block == 'A'), aes(x = X, y = Y, color = '2015'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-#   geom_point(data = subset(transects2011, block == 'A'), aes(x = X, y = Y, color = '2011'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-#   geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y, color = '2009'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-#   scale_color_manual(values = c('2009' = 'white', '2011' = '#CCCCCC', '2015' = '#666666', '2016' = 'black')) +
-#   ggtitle('A') +
-#   theme_few() +
-#   scale_x_continuous(limits = c(537922, 537972),
-#                      breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
-#                      labels = c(seq(0, 50, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1100957, 1101007),
-#                      breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
-#                      labels = c(seq(0, 50, 10)),
-#                      name = '2009 - 2016',
-#                      expand = c(0, 0)) +
-#   theme(axis.title.x = element_blank(),
-#         axis.title.y = element_text(size = 12), axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         legend.title = element_blank(),
-#         legend.justification = c(0, 0),
-#         legend.position = c(0.0025, 0),
-#         legend.text = element_text(size = 8),
-#         legend.margin = margin(t = 0, b = 2, r = 2),
-#         legend.key.height = unit(0.5, 'line'),
-#         plot.margin = unit(c(10, 0, 0, 0), "mm"))
-# 
-# B2009 <- emlimageB +
-#   geom_point(data = subset(transects2016, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
-#   geom_point(data = subset(transects2015, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
-#   geom_point(data = subset(transects2011, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
-#   geom_point(data = subset(transects2009, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
-#   ggtitle('B') +
-#   theme_few() +
-#   scale_x_continuous(limits = c(537983, 538028),
-#                      breaks = c(537983, 537993, 538003, 538013, 538023),
-#                      labels = c(seq(0, 40, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1101090, 1101142),
-#                      breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
-#                      labels = c(seq(0, 50, 10)),
-#                      name = '2009 - 2016',
-#                      expand = c(0, 0)) +
-#   theme(axis.title = element_blank(),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         plot.margin = unit(c(10, 0, 0, 0), "mm"))
-# 
-# C2009 <- emlimageC +
-#   geom_point(data = subset(transects2016, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
-#   geom_point(data = subset(transects2015, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
-#   geom_point(data = subset(transects2011, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
-#   geom_point(data = subset(transects2009, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
-#   ggtitle('C') +
-#   theme_few() +
-#   scale_x_continuous(limits = c(538103, 538149),
-#                      breaks = c(538103, 538113, 538123, 538133, 538143),
-#                      labels = c(seq(0, 40, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1101012, 1101062),
-#                      breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
-#                      labels = c(seq(0, 50, 10)),
-#                      name = '2009 - 2016',
-#                      expand = c(0, 0)) +
-#   theme(axis.title = element_blank(),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         plot.margin = unit(c(10, 0, 0, 0), "mm"))
-
-# figure <- ggarrange(A2009, B2009, C2009, ncol = 3, nrow = 1)
-# figure
-
-# A2018 <- emlimageA +
-#   geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-#   theme_few() +
-#   scale_x_continuous(limits = c(537922, 537972),
-#                      breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
-#                      labels = c(seq(0, 50, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1100957, 1101007),
-#                      breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
-#                      labels = c(seq(0, 50, 10)),
-#                      name = '2017 - 2018',
-#                      expand = c(0, 0)) +
-#   ggtitle('') +
-#   theme(axis.title.x = element_blank(),
-#         axis.title.y = element_text(size = 12),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         plot.margin = unit(c(0, 0, 10, 0), "mm"))
-# 
-# B2018 <- emlimageB +
-#   geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-#   theme_few() +
-#   scale_x_continuous(limits = c(537983, 538028),
-#                      breaks = c(537983, 537993, 538003, 538013, 538023),
-#                      labels = c(seq(0, 40, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1101090, 1101142),
-#                      breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
-#                      labels = c(seq(0, 50, 10)),
-#                      expand = c(0, 0)) +
-#   ggtitle('') +
-#   theme(axis.title = element_blank(),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         plot.margin = unit(c(0, 0, 10, 0), "mm"))
-# 
-# C2018 <- emlimageC +
-#   geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-#   theme_few() +
-#   scale_x_continuous(limits = c(538103, 538149),
-#                      breaks = c(538103, 538113, 538123, 538133, 538143),
-#                      labels = c(seq(0, 40, 10)),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(limits = c(1101012, 1101062),
-#                      breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
-#                      labels = c(seq(0, 50, 10)),
-#                      expand = c(0, 0)) +
-#   ggtitle('') +
-#   theme(axis.title = element_blank(),
-#         axis.text.x  = element_text(size = 8),
-#         axis.text.y = element_text(size = 8),
-#         aspect.ratio = 1,
-#         plot.title = element_text(size = 12, hjust = 0.5),
-#         plot.margin = unit(c(0, 0, 10, 0), "mm"))
-# 
-# transects <- ggarrange(A2009, B2009, C2009, A2018, B2018, C2018, ncol = 3, nrow = 2)
-# transects
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/gps_transects.jpg', transects, width = 190, height = 120, units = 'mm')
-# geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
 
 # create an inset to show location in AK
 akcenter <- c(-154.055, 64.603)
@@ -352,107 +279,72 @@ akmapgrob <- ggplotGrob(akmap +
         panel.background = element_rect(fill = NULL)))
 
 # create an inset to show the blocks
-fences <- fences %>%
-  mutate(fence = as.numeric(Id),
-         block = ifelse(fence <= 2,
-                        'A',
-                        ifelse(fence >= 5,
-                               'C',
-                               'B')))
-
-fences_list <- map(blocks,
-                   ~filter(fences, block == .x))
-
-cores <- cores %>%
-  separate(Name, into = c('fence', 'plot')) %>%
-  mutate(fence = as.numeric(str_sub(fence, start = 3)),
-         block = ifelse(fence <= 2,
-                        'A',
-                        ifelse(fence >= 5,
-                               'C',
-                               'B')),
-  treatment = ifelse(plot <= 2,
-                     'Control',
-                     'Warming')) %>%
-  dplyr::select(block, fence, plot, treatment, Easting, Northing) %>%
-  st_zm()
-
-cores_list <- map(blocks,
-                  ~filter(cores, block == .x))
-
-# why aren't the treatment colors right? Also, why isn't datum working? How can I get it to display the graticules in the crs of the input data?
-blocka <- emlimageA +
-  geom_sf(data = filter(cores, block == 'A'), aes(color = treatment, fill = treatment), size = 5) +
-  geom_sf(data = filter(fences, block == 'A'), size = 2) +
-  geom_sf(data = trans_bbox[[1]], fill = NA, color = 'black', linetype = 'dashed', size = 1) +
-  coord_sf(datum = spcsak4) +
+test <- emlimages[[1]] +
+  geom_point(data = cores_list[[1]], aes(x = x, y = y, color = treatment, fill = treatment), size = 5) +
+  geom_path(data = fences_list[[1]], aes(x = x, y = y, group = fence), size = 2) +
+  geom_path(data = coords_list[[1]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed', size = 1) +
   scale_colour_manual(values = c("#006699", "#990000"),
                       labels = c('Control', 'Warming'),
                       name = '') +
   scale_fill_manual(values = c("#006699", "#990000"),
                       labels = c('Control', 'Warming'),
                       name = '') +
-  scale_x_continuous(name = '',
+  scale_x_continuous(name = 'Distance (m)',
+                     breaks = seq(0, 50, 10),
+                     labels = seq(0, 50, 10),
                      expand = c(0,0)) +
-  scale_y_continuous(name = '',
+  scale_y_continuous(name = 'Distance (m)',
+                     breaks = seq(0, 50, 10),
+                     labels = seq(0, 50, 10),
                      expand = c(0,0)) +
   theme_few()
-blocka
+test
 
-block_figures1 <- map2(emlimages,
-                      cores_list,
-                      ~.x +
-                        geom_sf(data = .y, aes(color = treatment, fill = treatment), size = 5) +
-                        coord_sf(datum = spcsak4) +
-                        scale_colour_manual(values = c("#006699", "#990000"),
-                                            labels = c('Control', 'Warming'),
-                                            name = 'Soil Cores') +
-                        scale_fill_manual(values = c("#006699", "#990000"),
-                                          labels = c('Control', 'Warming'),
-                                          name = 'Soil Cores') +
-                        scale_x_continuous(name = 'Longitude (m)',
-                                           expand = c(0,0)) +
-                        scale_y_continuous(name = 'Latitude (m)',
-                                           expand = c(0,0)) +
-                        theme_few())
+block_figures <- list()
+for (i in 1:3) {
+  legends <- list(FALSE, FALSE, TRUE)
+  titles <- list('Block A', 'Block B', 'Block C')
+  temp <- emlimages[[i]] +
+    geom_point(data = cores_list[[i]], aes(x = x, y = y, color = treatment, fill = treatment), size = 3) +
+    geom_path(data = fences_list[[i]], aes(x = x, y = y, group = fence), size = 1) +
+    geom_path(data = coords_list[[i]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed', size = 1) +
+    scale_colour_manual(values = c("#006699", "#990000"),
+                        labels = c('Control', 'Warming'),
+                        name = 'Soil Cores') +
+    scale_fill_manual(values = c("#006699", "#990000"),
+                      labels = c('Control', 'Warming'),
+                      name = 'Soil Cores') +
+    scale_x_continuous(name = '',
+                       limits = c(0, 50),
+                       expand = c(0,0)) +
+    scale_y_continuous(name = '',
+                       limits = c(0, 50),
+                       expand = c(0,0)) +
+    theme_few() +
+    ggtitle(paste(titles[i])) +
+    theme(plot.title = element_text(hjust = 0.5,
+                                    size = 10),
+          text = element_text(size = 8))
+  
+  if (legends[[i]]) {
+    block_figures[[i]] <- temp
+  } else {
+      block_figures[[i]] <- temp +
+        theme(legend.position = "none")
+  }
+  rm(temp, legends, titles)
+}
 
-block_figures2 <- map2(block_figures1,
-                       fences_list,
-                       ~ .x +
-                         geom_sf(data = .y, size = 2) +
-                         coord_sf(datum = spcsak4))
+block_figures
 
-block_figures3 <- map2(block_figures2,
-                       trans_bbox,
-                       ~ .x +
-                         geom_sf(data = .y, fill = NA, color = 'black', linetype = 'dashed', size = 1) +
-                         coord_sf(datum = spcsak4))
 
-legends <- list(FALSE, FALSE, TRUE)
-block_figures4 <- map2(block_figures3,
-             legends,
-            ~ if(.y) {.x + theme(legend.justification =c (1, 0),
-                                 legend.position = c(1, 0),
-                                 legend.background = element_rect(color="grey30", size=.5))} 
-            else {.x + theme(legend.position = "none")})
-
-titles <- list('Block A', 'Block B', 'Block C')
-block_figures5 <- map2(block_figures4,
-                       titles,
-                       ~ .x + ggtitle(.y) + theme(plot.title = element_text(hjust = 0.5)))
-
-block_figures <- Rmisc::multiplot(block_figures5[[1]],
-                                  block_figures5[[2]],
-                                  block_figures5[[3]],
-                           cols = 3)
-
-block_figure_grobs <- map(block_figures5,
+block_figure_grobs <- map(block_figures,
                           ~ggplotGrob(.x))
 
 # create main map with hillshade and block and tower locations
 emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   geom_tile() +
-  geom_point(data = blocks_tower, aes(x = X, y = Y, colour = Exp), inherit.aes = FALSE) +
+  geom_point(data = blocks_tower, aes(x = X, y = Y, colour = Exp), inherit.aes = FALSE, size = 3) +
   geom_text(data = blocks_tower, aes(x = X, y = Y, label = Block), colour = 'black', inherit.aes = FALSE,  hjust = -0.2, vjust = -0.2) +
   theme_few() +
   scale_fill_gradient(low = '#000000', high = '#DDDDDD',
@@ -464,14 +356,17 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   scale_colour_manual(values = c('#cc3300', 'black'),
                       labels = c('CiPEHR', 'Tower'),
                       name = '')+
-  theme(axis.title = element_blank(),
-        axis.text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10),
         aspect.ratio = 1,
         plot.margin = unit(c(0, 10, 0, 5), "mm")) +
   coord_fixed()
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
-  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389050, xmax = 389600, ymin = 7086450, ymax = 7086950)
+  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389548, ymin = 7086390, ymax = 7087000) +
+  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389542, xmax = 390060, ymin = 7086390, ymax = 7087000) +
+  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390055, xmax = 391000, ymin = 7086390, ymax = 7087000)
 fullmap
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview.jpg', fullmap, width = 190, height = 190, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 160, units = 'mm')
