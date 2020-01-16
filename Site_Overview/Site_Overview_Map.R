@@ -22,6 +22,7 @@ emlpoints <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/
 cores09 <- c('ww1.2', 'ww1.3', 'ww2.1', 'ww2.4', 'ww3.2', 'ww3.4', 'ww4.1', 'ww4.3', 'ww5.2', 'ww5.3', 'ww6.2', 'ww6.4')
 cores <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
   filter(Name %in% cores09)
+plots <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp")
 fences <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Fences.shp')
 emldtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/DTM_All/NEON_DTM_2017.tif') %>%
   crop(y = extent(389000, 391000, 7085000, 7087000)) # the whole thing - needs to be clipped
@@ -188,7 +189,7 @@ blockimagery_df_norm <- map2(blockimagery,
                            ~ as(.x, 'SpatialPixelsDataFrame') %>%
                              as.data.frame() %>%
                              mutate(block = .y) %>%
-                             left_join(coords_norm, by = c('block')) %>%
+                             left_join(coords_min, by = c('block')) %>%
                              mutate(x = x - xmin,
                                     y = y - ymin) %>%
                              select(-xmin, -ymin))
@@ -247,15 +248,38 @@ cores_norm <- cores %>%
                                'B')),
          treatment = ifelse(plot <= 2,
                             'Control',
-                            'Warming')) %>%
+                            'Warming'),
+         shape = 'dot') %>%
   st_zm() %>%
   full_join(coords_min, by = c('block')) %>%
   mutate(x = round(Easting - xmin),
          y = round(Northing - ymin)) %>%
-  select(block, fence, plot, treatment, x, y)
+  select(block, fence, plot, treatment, shape, x, y)
 
 cores_list <- map(blocks,
                   ~filter(cores_norm, block == .x))
+
+# format the plot data
+plots_norm <- plots %>%
+  filter(exp == 'CiPEHR') %>%
+  mutate(block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence <= 4,
+                               'B',
+                               'C')),
+         plot = as.numeric(as.character(plot)),
+         treatment = ifelse(plot <= 4,
+                            'Control',
+                            'Warming'),
+         shape = 'square') %>%
+  st_drop_geometry() %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(Easting - xmin),
+         y = round(Northing - ymin)) %>%
+  select(block, fence, plot, treatment, shape, x, y)
+
+plots_list <- map(blocks,
+                  ~ filter(plots_norm, block == .x))
 ##############################################################################################################
 
 ### Plot block location over hillshade #######################################################################
@@ -265,8 +289,11 @@ emlimages <- map(blockimagery_norm,
 
 # create an inset to show location in AK
 akcenter <- c(-154.055, 64.603)
-  # as.numeric(geocode('alaska, usa'))
 akmap <- ggmap(get_googlemap(center = akcenter, zoom = 4, maptype = 'satellite', region = '.us'))
+akoutline <- map_data('world', region = 'USA') %>%
+  filter(subregion == 'Alaska')
+akmap <- akmap  + 
+  geom_polygon(data = akoutline, aes(x = long, y = lat, group = group), fill = NA, color = "black")
 akmap
 
 akmapgrob <- ggplotGrob(akmap +
@@ -279,41 +306,29 @@ akmapgrob <- ggplotGrob(akmap +
         panel.background = element_rect(fill = NULL)))
 
 # create an inset to show the blocks
-test <- emlimages[[1]] +
-  geom_point(data = cores_list[[1]], aes(x = x, y = y, color = treatment, fill = treatment), size = 5) +
-  geom_path(data = fences_list[[1]], aes(x = x, y = y, group = fence), size = 2) +
-  geom_path(data = coords_list[[1]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed', size = 1) +
-  scale_colour_manual(values = c("#006699", "#990000"),
-                      labels = c('Control', 'Warming'),
-                      name = '') +
-  scale_fill_manual(values = c("#006699", "#990000"),
-                      labels = c('Control', 'Warming'),
-                      name = '') +
-  scale_x_continuous(name = 'Distance (m)',
-                     breaks = seq(0, 50, 10),
-                     labels = seq(0, 50, 10),
-                     expand = c(0,0)) +
-  scale_y_continuous(name = 'Distance (m)',
-                     breaks = seq(0, 50, 10),
-                     labels = seq(0, 50, 10),
-                     expand = c(0,0)) +
-  theme_few()
-test
-
 block_figures <- list()
 for (i in 1:3) {
   legends <- list(FALSE, FALSE, TRUE)
   titles <- list('Block A', 'Block B', 'Block C')
   temp <- emlimages[[i]] +
-    geom_point(data = cores_list[[i]], aes(x = x, y = y, color = treatment, fill = treatment), size = 3) +
-    geom_path(data = fences_list[[i]], aes(x = x, y = y, group = fence), size = 1) +
-    geom_path(data = coords_list[[i]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed', size = 1) +
+    geom_point(data = cores_list[[i]], aes(x = x, y = y, color = treatment,
+                                           # shape = shape
+                                           ),
+               shape = 16,
+               size = 2) +
+    geom_point(data = plots_list[[i]], aes(x = x, y = y, color = treatment,
+                                           # shape = shape
+                                           ),
+               shape = 5,
+               size = 1) +
+    geom_path(data = fences_list[[i]], aes(x = x, y = y, group = fence)) +
+    geom_path(data = coords_list[[i]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed') +
     scale_colour_manual(values = c("#006699", "#990000"),
                         labels = c('Control', 'Warming'),
-                        name = 'Soil Cores') +
-    scale_fill_manual(values = c("#006699", "#990000"),
-                      labels = c('Control', 'Warming'),
-                      name = 'Soil Cores') +
+                        name = '') +
+    # scale_shape_manual(values = c(16, 5),
+    #                   labels = c('Cores', 'Plots'),
+    #                   name = '') +
     scale_x_continuous(name = '',
                        limits = c(0, 50),
                        expand = c(0,0)) +
@@ -323,8 +338,12 @@ for (i in 1:3) {
     theme_few() +
     ggtitle(paste(titles[i])) +
     theme(plot.title = element_text(hjust = 0.5,
+                                    vjust = ,
                                     size = 10),
-          text = element_text(size = 8))
+          text = element_text(size = 8),
+          legend.title = element_blank(),
+          # legend.margin = margin(0, 4, 0, 4)
+          )
   
   if (legends[[i]]) {
     block_figures[[i]] <- temp
@@ -365,8 +384,10 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
-  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389548, ymin = 7086390, ymax = 7087000) +
-  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389542, xmax = 390060, ymin = 7086390, ymax = 7087000) +
-  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390055, xmax = 391000, ymin = 7086390, ymax = 7087000)
+  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389535, ymin = 7086385, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389535, xmax = 390070, ymin = 7086385, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390070, xmax = 391000, ymin = 7086385, ymax = Inf)
 fullmap
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 160, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 150, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.pdf', fullmap, width = 190, height = 150, units = 'mm', device=cairo_pdf)
+
