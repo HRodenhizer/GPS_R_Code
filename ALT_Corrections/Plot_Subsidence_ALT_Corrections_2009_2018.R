@@ -648,7 +648,8 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
                      breaks = seq(-0.9, 0.1, .1),
                      labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0, 0),
         legend.position=c(0.01, 0.01),
@@ -750,11 +751,11 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
   scale_color_manual(name = 'Permafrost Thaw',
                      breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#666666", "#000000"),
-                     labels = c('ALT', 'SALT')) +
+                     labels = c('ALT', 'Thaw Penetration')) +
   scale_fill_manual(name = 'Thawed C',
                     breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#666666", "#000000"),
-                     labels = c('ALT', 'SALT')) +
+                     labels = c('ALT', 'Thaw Penetration')) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
   scale_y_continuous(name = 'Permafrost Thaw (cm)',
@@ -769,7 +770,8 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
   theme_few() +
   guides(color = guide_legend(order = 2),
          fill = guide_legend(order = 1)) +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         strip.text.x = element_text(color = 'black'),
         legend.title = element_blank(),
         axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
@@ -830,7 +832,8 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
                      expand = c(0,0),
                      name = 'Depth (cm)') +
   theme_few() +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         strip.text.x = element_text(color = 'black'),
         axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5),
         legend.justification=c(0,0),

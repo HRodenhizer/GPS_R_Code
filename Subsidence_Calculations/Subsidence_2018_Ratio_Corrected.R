@@ -181,8 +181,9 @@ sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 8),
-        strip.text.y = element_text(angle = 0)) +
+        text = element_text(size = 12),
+        strip.text.y = element_text(angle = 0),
+        axis.text = element_text(size = 10)) +
   guides(color = guide_legend(label.position = "top",
                               label.hjust = 0)) 
 

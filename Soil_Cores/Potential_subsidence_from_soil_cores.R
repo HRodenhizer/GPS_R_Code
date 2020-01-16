@@ -485,7 +485,8 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
                       name = '') +
   scale_shape_discrete(name = '') +
   theme_few() +
-  theme(text = element_text(size = 8)) +
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10)) +
   coord_fixed()
 ice.loss
 
