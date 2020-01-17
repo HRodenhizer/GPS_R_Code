@@ -246,9 +246,10 @@ cores_norm <- cores %>%
                         ifelse(fence >= 5,
                                'C',
                                'B')),
-         treatment = ifelse(plot <= 2,
-                            'Control',
-                            'Warming'),
+         treatment = factor(ifelse(plot <= 2,
+                                   'Control',
+                                   'Soil Warming'),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming')),
          shape = 'dot') %>%
   st_zm() %>%
   full_join(coords_min, by = c('block')) %>%
@@ -268,9 +269,14 @@ plots_norm <- plots %>%
                                'B',
                                'C')),
          plot = as.numeric(as.character(plot)),
-         treatment = ifelse(plot <= 4,
-                            'Control',
-                            'Warming'),
+         treatment = factor(ifelse(plot == 2 | plot == 4,
+                                   'Control',
+                                   ifelse(plot == 1 | plot == 3,
+                                          'Air Warming',
+                                          ifelse(plot == 6 | plot == 8,
+                                                 'Soil Warming',
+                                                 'Air & Soil Warming'))),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming')),
          shape = 'square') %>%
   st_drop_geometry() %>%
   full_join(coords_min, by = c('block')) %>%
@@ -311,20 +317,26 @@ for (i in 1:3) {
   legends <- list(FALSE, FALSE, TRUE)
   titles <- list('Block A', 'Block B', 'Block C')
   temp <- emlimages[[i]] +
-    geom_point(data = cores_list[[i]], aes(x = x, y = y, color = treatment,
+    geom_point(data = plots_list[[i]], aes(x = x,
+                                           y = y,
+                                           color = treatment,
                                            # shape = shape
-                                           ),
+                                          ),
+               shape = 5,
+               size = 0.5,
+               stroke = 1) +
+    geom_point(data = cores_list[[i]], aes(x = x,
+                                           y = y,
+                                           color = treatment,
+                                           # shape = shape
+                                          ),
                shape = 16,
                size = 2) +
-    geom_point(data = plots_list[[i]], aes(x = x, y = y, color = treatment,
-                                           # shape = shape
-                                           ),
-               shape = 5,
-               size = 1) +
     geom_path(data = fences_list[[i]], aes(x = x, y = y, group = fence)) +
     geom_path(data = coords_list[[i]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed') +
-    scale_colour_manual(values = c("#006699", "#990000"),
-                        labels = c('Control', 'Warming'),
+    scale_colour_manual(breaks = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming'),
+                        values = c("#0099cc", '#009900', "#990000", '#330000'),
+                        labels = c('Control', 'Air', 'Soil', 'Air & Soil'),
                         name = '') +
     # scale_shape_manual(values = c(16, 5),
     #                   labels = c('Cores', 'Plots'),
@@ -342,7 +354,7 @@ for (i in 1:3) {
                                     size = 10),
           text = element_text(size = 8),
           legend.title = element_blank(),
-          # legend.margin = margin(0, 4, 0, 4)
+          legend.margin = margin(0, 0, 0, 0)
           )
   
   if (legends[[i]]) {
@@ -384,10 +396,16 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
-  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389535, ymin = 7086385, ymax = Inf) +
-  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389535, xmax = 390070, ymin = 7086385, ymax = Inf) +
-  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390070, xmax = 391000, ymin = 7086385, ymax = Inf)
+  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389555, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389555, xmax = 390110, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390110, xmax = 391000, ymin = 7086365, ymax = Inf)
 fullmap
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 150, units = 'mm')
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.pdf', fullmap, width = 190, height = 150, units = 'mm', device=cairo_pdf)
 
+# # works with legend with control and soil warming only
+# fullmap <- emlmap +
+#   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
+#   annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389535, ymin = 7086385, ymax = Inf) +
+#   annotation_custom(grob = block_figure_grobs[[2]], xmin = 389535, xmax = 390070, ymin = 7086385, ymax = Inf) +
+#   annotation_custom(grob = block_figure_grobs[[3]], xmin = 390070, xmax = 391000, ymin = 7086385, ymax = Inf)
