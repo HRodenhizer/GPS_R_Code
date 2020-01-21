@@ -467,7 +467,7 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
                    xend = max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
                    yend = model_ci$coefs[1] + model_ci$coefs[2]*max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE)),
                colour = 'black') +
-  scale_x_continuous(name = 'Ice Height (m)') +
+  scale_x_continuous(name = expression("Ice Height"[max]*" (m)")) +
   scale_y_continuous(name = expression("Measured "*Delta*" Elevation (m)")) +
   annotate(geom = 'text', 
            x = 0.4125, 
