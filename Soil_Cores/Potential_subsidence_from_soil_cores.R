@@ -27,6 +27,9 @@ soil <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/
 # delta13C, delta15N (per mil)
 # x.stock (stocks of soil, N, C, etc.), cu.x.stock (cumulative stocks) (kg/m^2)
 ###
+rocks <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009/CiPEHR Soil Data 2009_EP_CH_05.03.2012.xlsx",
+                    sheet = 3) %>%
+  filter(!is.na(Rock))
 
 # read in water well location data and subsidence data for 2013
 water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
@@ -181,6 +184,26 @@ new.depth1 <- alt$mean.ALT[c(FALSE, TRUE, TRUE)]
 new.alt.id <- alt$alt.id[c(FALSE, TRUE, TRUE)]
 new.alt.year <- alt$year[c(FALSE, TRUE, TRUE)]
 
+# prep rock data for joining to soil core data
+rocks2 <-rocks %>%
+  group_by(Fence, plot, depth) %>%
+  summarise(rock = sum(Rock)) %>%
+  separate(depth, into = c('depth0', 'depth1'), sep = '-') %>%
+  mutate(treatment = ifelse(plot <= 4,
+                            'c',
+                            'w'),
+         fence = Fence) %>%
+  left_join(filter(alt, year == 2009), by = c('fence', 'treatment')) %>%
+  rename(ALT.initial = mean.ALT) %>%
+  left_join(filter(alt, year == 2013), by = c('fence', 'treatment')) %>%
+  rename(ALT.2013 = mean.ALT) %>%
+  left_join(filter(alt, year == 2018), by = c('fence', 'treatment')) %>%
+  rename(ALT.end = mean.ALT) %>%
+  ungroup() %>%
+  select(fence, treatment, depth0, depth1, rock, ALT.initial, ALT.2013, ALT.end) %>%
+  filter(depth1 > ALT.initial & depth1 < ALT.2013) %>%
+  select(fence, treatment, rock)
+
 # select 2009, 2013, and 2017, average duplicate cores from the same fence/treatment, and join ALT data
 soil_09 <- soil %>%
   filter(year == 2009) %>%
@@ -197,7 +220,7 @@ soil_stock <- soil_09 %>%
   do({ data.frame( soil.stock = sum.soil.prop(.$depth0, .$depth1, new.depth0, new.depth1, .$bulk.density, .$soil.stock))}) %>%
   ungroup()
 
-core.area <- 45.3646
+core.area <- 45.3646 # cm^2
 
 ice_loss <- moisture %>%
   cbind.data.frame(select(soil_stock, soil.stock)) %>%
@@ -215,7 +238,11 @@ ice_loss <- moisture %>%
   group_by(block, fence, treatment) %>%
   mutate(ice.height = (moisture/1000*bulk.density*height/0.92)/(1 - moisture/1000)*10^-2, # output in m
          cumulative.ice.height = cumsum(ice.height)) %>%
-  arrange(block, fence, treatment, alt.year)
+  arrange(block, fence, treatment, alt.year) %>%
+  left_join(rocks2, by = c('fence', 'treatment')) %>%
+  mutate(rock = ifelse(is.na(rock),
+                       0,
+                       rock))
 
 # test out adjusting for estimated pore ice content (pore ice doesn't take up volume that would be lost and result in subsidence upon thaw)
 # using the estimate that soil volume is 50% pore space in silt loam (i.e. 50% of soil volume can be filled with water)
@@ -223,16 +250,17 @@ ice_loss <- moisture %>%
 pore_ice_height <- ice_loss %>%
   mutate(core.volume = (depth1 - depth0)*core.area*10^-6, # m^3,
          ice.volume = ice.height*core.area*10^-4, # m^3
-         soil.volume = (core.volume - ice.volume)*2, # m^3
-         excess.ice.volume = ifelse(core.volume > soil.volume,
-                                    core.volume - soil.volume,
+         soil.volume.measured = soil.stock*core.area/bulk.density*10^-7 + rock*10^-6, # m^3, including rocks - this gets us the core volume, except when there are rocks when it is larger than the core volume (this is an artifact of calculating bulk density with the total core area minus rocks)
+         soil.volume = (core.volume - ice.volume)*2, # m^3, use this one, because the soil without ice does not take up the whole core area
+         excess.ice.volume = ifelse(core.volume > soil.volume.theoretical,
+                                    core.volume - soil.volume.theoretical,
                                     0), # m^3
          pore.ice.volume = ice.volume - excess.ice.volume, # m^3
          pore.ice.height = pore.ice.volume/(core.area*10^-4), # m
          excess.ice.height = excess.ice.volume/(core.area*10^-4), # m
          cumulative.excess.ice.height = cumsum(excess.ice.height), # m
-         potential.sub = cumsum(excess.ice.height + (pore.ice.height - pore.ice.height*0.92)), # m
-         bulk.density.2 = (bulk.density*core.volume)/(soil.volume)) # g cm^-3
+         potential.sub = cumsum(excess.ice.height), # m
+         bulk.density.2 = (bulk.density*core.volume)/(soil.volume.theoretical)) # g cm^-3
 
 mean(pore_ice_height$bulk.density, na.rm = TRUE)
 mean(pore_ice_height$bulk.density.2, na.rm = TRUE)
@@ -549,4 +577,78 @@ C.upr.bd.lwr.percent <- C.upr.bd.lwr.9/avg.sub.2018
 C.lwr.bd.lwr.percent <- C.lwr.bd.lwr.9/avg.sub.2018
 C.upr.bd.upr.percent <- C.upr.bd.upr.9/avg.sub.2018
 C.lwr.bd.upr.percent <- C.lwr.bd.upr.9/avg.sub.2018
+####################################################################################################################################
+
+### Figure of Soil Core Ice Height Calculation #####################################################################################
+ice_height_calc_data <- data.frame(year = c(2009, 2009),
+                                   x = c(0, 10),
+                                   Soil.Surface = c(0, 0),
+                                   Thaw.Penetration.2009 = c(-50, -50),
+                                   Thaw.Penetration.2018 = c(-90, -90))
+
+names <- c('Original Active Layer', 'Newly Thawed Permafrost', 'Permafrost')
+color <- c('Permafrost' = '#666666', 'Original Active Layer' = '#996633', 'Newly Thawed Permafrost' = '#663322')
+
+ggplot(ice_height_calc_data, aes(x = x)) +
+  geom_ribbon(aes(ymin = -100, ymax = Thaw.Penetration.2018), fill = '#666666') +
+  geom_ribbon(aes(ymin = Thaw.Penetration.2018, ymax = Thaw.Penetration.2009), fill = '#663322') +
+  geom_ribbon(aes(ymin = Thaw.Penetration.2009, ymax = Soil.Surface), fill = '#996633') +
+  geom_hline(aes(yintercept = Soil.Surface)) +
+  geom_hline(aes(yintercept = Thaw.Penetration.2009)) +
+  geom_hline(aes(yintercept = Thaw.Penetration.2018)) +
+  annotate('text', x = 3, y = -70, label = 'Thawed', angle = 90, size = 2.5, hjust = 0.5, vjust = 0.5) +
+  annotate('text', x = 7, y = -70, label = 'Permafrost', angle = 90, size = 2.5, hjust = 0.5, vjust = 0.5) +
+  scale_x_continuous(name = '',
+                     limits = c(0, 10),
+                     labels = NULL,
+                     expand = c(0,0)) +
+  scale_y_continuous(position = 'right',
+                     name = '',
+                     limits = c(-100, 0),
+                     breaks = c(-90, -50, 0),
+                     labels = c('Final Thaw Penetration', 'Initial Thaw Penetration', 'Soil Surface'),
+                     expand = c(0,0)) +
+  scale_fill_manual(name = '',
+                    values = color,
+                    breaks = names) +
+  ggtitle('2009 Soil Core') +
+  theme_few() +
+  theme(axis.ticks = element_blank(),
+        plot.title = element_text(size = 10),
+        text = element_text(size = 10)) +
+  coord_fixed()
+
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Ice_Height_Calculation.jpg", height = 80, width = 45, units = 'mm')
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Ice_Height_Calculation.pdf", height = 80, width = 45, units = 'mm')
+
+soil_volume_calc_data <- data.frame(x = c(0, 10),
+                                    top = c(0, 0),
+                                    middle = c(-10, -10),
+                                    bottom = c(-25, -25))
+
+ggplot(soil_volume_calc_data, aes(x = x)) +
+  geom_ribbon(aes(ymin = bottom, ymax = middle), fill = '#663322') +
+  geom_ribbon(aes(ymin = middle, ymax = top), fill = '#0099cc') +
+  geom_hline(aes(yintercept = top)) +
+  geom_hline(aes(yintercept = middle)) +
+  geom_hline(aes(yintercept = bottom)) +
+  annotate('text', x = 5, y = -5, label = 'Excess Ice', size = 2.5, hjust = 0.5, vjust = 0.5) +
+  annotate('text', x = 5, y = -16, label = 'Soil and', size = 2.5, hjust = 0.5, vjust = 0.5) +
+  annotate('text', x = 5, y = -19, label = 'Pore Ice', size = 2.5, hjust = 0.5, vjust = 0.5) +
+  scale_x_continuous(name = '',
+                     limits = c(0, 10),
+                     labels = NULL,
+                     expand = c(0,0)) +
+  scale_y_continuous(name = '',
+                     limits = c(-25, 0),
+                     expand = c(0,0),
+                     labels = NULL) +
+  theme_few() +
+  theme(axis.ticks = element_blank(),
+        text = element_text(size = 10)) +
+  coord_fixed()
+
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Volume_Calculation.jpg", height = 50, width = 30, units = 'mm')
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Volume_Calculation.pdf", height = 50, width = 30, units = 'mm')
+
 ####################################################################################################################################
