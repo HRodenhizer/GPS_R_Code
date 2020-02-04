@@ -5,7 +5,6 @@
 
 ###Required packages to do this with tidyverse
 library(sf)
-library(tidyverse)
 library(viridis)
 library(ggplot2)
 library(readxl)
@@ -14,6 +13,7 @@ library(rgdal)
 library(gstat)
 library(raster)
 library(ggthemes)
+library(tidyverse)
 
 ############## Load most recent gps file and 2017 elevation surface ###################
 Points2018 <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2018_SPCSAK4.shp")
@@ -26,9 +26,9 @@ C2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GP
 #######################################################################################
 
 # had to correct elevation due to file being exported from Trimble Business Center in WGS84
-points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points.shp") %>%
-  mutate(Elevation = Elevation-12.741669,
-         GlobalElli = GlobalElli-12.741669)
+# points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points.shp") %>%
+#   mutate(Elevation = Elevation-12.741669,
+#          GlobalElli = GlobalElli-12.741669)
 # st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2018 GPS/Post_processing_2018/All_Points_2018.shp/Points_v2.shp")
 
 ##############################Select data by block##############################
