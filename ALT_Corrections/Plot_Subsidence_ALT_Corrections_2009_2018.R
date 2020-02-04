@@ -789,7 +789,7 @@ gtest2
 # soil profile graphs
 # colors needed
 names <- c('Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
-color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
+values <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
 
 # Cross section of soil for control and warming
 treat_labels <- c(Control = 'Control',
@@ -807,8 +807,8 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
               linetype = 1,
               colour = 'black') +
-  geom_line(aes(y = mean.ALT),
-            linetype = 3,
+  geom_line(aes(y = mean.ALT,
+                linetype = 'ALT'),
             color = 'black',
             size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
@@ -818,8 +818,10 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   geom_errorbar(aes(ymin = mean.subsidence + mean.WTD - se.WTD, ymax = mean.subsidence + mean.WTD + se.WTD), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.ALT - se.ALT, ymax = mean.ALT + se.ALT), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.ALT.corrected - se.ALT.corrected, ymax = mean.ALT.corrected + se.ALT.corrected), width = 0.2, colour = 'grey50') +
+  scale_linetype_manual(breaks = c('ALT'),
+                        values = c(3)) +
   scale_fill_manual(name = '',
-                    values = color,
+                    values = values,
                     breaks = names) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
@@ -836,11 +838,17 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
         axis.text = element_text(size = 10),
         strip.text.x = element_text(color = 'black'),
         axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5),
-        legend.justification=c(0,0),
-        legend.position=c(0,0),
-        legend.background = element_rect(color="grey30", size=.5),
+        legend.justification = c(0,0),
+        legend.position = c(0.002,0),
         legend.title = element_blank(),
-        panel.spacing = unit(1, "lines"))
+        legend.margin = margin(unit(c(-5, 0, -10, 0), unit = 'mm')),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color="grey30", size=.5),
+        legend.box.margin = margin(unit(c(5, 5, 15, 5), units = 'mm')),
+        panel.spacing = unit(1, "lines")) + 
+  guides(linetype = guide_legend(order = 1),
+         fill = guide_legend(order = 2))
+  
 
 g4
 
