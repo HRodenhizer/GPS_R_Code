@@ -170,7 +170,7 @@ sub_map_filled
 # map without gapfilled data
 sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long.norm, y=lat.norm)) +
   geom_tile(aes(height = 2, width = 2, fill = Sub)) + # have to set height and width due to bug. See note/link above.
-  geom_tile(aes(height = 2, width = 2, color = sub.color), fill = 'transparent', size = 0.5) +
+  # geom_tile(aes(height = 2, width = 2, color = sub.color), fill = 'transparent', size = 0.5) +
   geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
   geom_path(data = treatments, aes(x = x, y = y, color = treatment), size = 1, inherit.aes = FALSE) +
   facet_grid(block ~ year) +
@@ -179,8 +179,10 @@ sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long
   scale_fill_viridis(expression(Delta*" Elevation (m)"),
                      limits = c(-1.0, 0.5)) +
   scale_color_manual(name = '',
-                     labels = c('Snow Fence', 'Frost Heave', 'Control', 'Soil Warming'), # frost heave is only highlighted if >20 cm
-                     values = c('#000000', '#FDE725FF', "#006666", "#CC3300")) +
+                     labels = c('Snow Fence',# 'Frost Heave', 
+                                'Control', 'Soil Warming'), # if comments are removed, frost heave is highlighted if >20 cm
+                     values = c('#000000',# '#FDE725FF', 
+                                "#006666", "#CC3300")) +
   scale_x_continuous(name = 'Distance (m)') +
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
@@ -193,8 +195,8 @@ sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long
 
 sub_map
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.jpg', sub_map, width = 190, height = 110, units = 'mm')
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.pdf', sub_map, width = 190, height = 110, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.jpg', sub_map, width = 190, height = 100, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.pdf', sub_map, width = 190, height = 100, units = 'mm')
 ########################################################################################
 
 ### Read in Variance data for graphing #################################################
