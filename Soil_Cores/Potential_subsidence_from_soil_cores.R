@@ -27,7 +27,7 @@ soil <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/
 # delta13C, delta15N (per mil)
 # x.stock (stocks of soil, N, C, etc.), cu.x.stock (cumulative stocks) (kg/m^2)
 ###
-rocks <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009/CiPEHR Soil Data 2009_EP_CH_05.03.2012.xlsx",
+rocks <- read_excel("Z:/Schuur Lab/2020 New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009/CiPEHR Soil Data 2009_EP_CH_05.03.2012.xlsx",
                     sheet = 3) %>%
   filter(!is.na(Rock))
 
@@ -202,7 +202,10 @@ rocks2 <-rocks %>%
   ungroup() %>%
   select(fence, treatment, depth0, depth1, rock, ALT.initial, ALT.2013, ALT.end) %>%
   filter(depth1 > ALT.initial & depth1 < ALT.2013) %>%
-  select(fence, treatment, rock)
+  select(fence, treatment, rock) %>%
+  group_by(fence, treatment) %>%
+  summarise(rock = sum(rock)) %>%
+  ungroup()
 
 # select 2009, 2013, and 2017, average duplicate cores from the same fence/treatment, and join ALT data
 soil_09 <- soil %>%
@@ -252,20 +255,21 @@ pore_ice_height <- ice_loss %>%
          ice.volume = ice.height*core.area*10^-4, # m^3
          soil.volume.measured = soil.stock*core.area/bulk.density*10^-7 + rock*10^-6, # m^3, including rocks - this gets us the core volume, except when there are rocks when it is larger than the core volume (this is an artifact of calculating bulk density with the total core area minus rocks)
          soil.volume = (core.volume - ice.volume)*2, # m^3, use this one, because the soil without ice does not take up the whole core area
-         excess.ice.volume = ifelse(core.volume > soil.volume.theoretical,
-                                    core.volume - soil.volume.theoretical,
+         excess.ice.volume = ifelse(core.volume > soil.volume,
+                                    core.volume - soil.volume,
                                     0), # m^3
          pore.ice.volume = ice.volume - excess.ice.volume, # m^3
          pore.ice.height = pore.ice.volume/(core.area*10^-4), # m
          excess.ice.height = excess.ice.volume/(core.area*10^-4), # m
          cumulative.excess.ice.height = cumsum(excess.ice.height), # m
          potential.sub = cumsum(excess.ice.height), # m
-         bulk.density.2 = (bulk.density*core.volume)/(soil.volume.theoretical)) # g cm^-3
+         bulk.density.2 = (bulk.density*core.volume)/(soil.volume)) # g cm^-3
 
 mean(pore_ice_height$bulk.density, na.rm = TRUE)
 mean(pore_ice_height$bulk.density.2, na.rm = TRUE)
 
 # write.csv(ice_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
+# write.csv(pore_ice_height, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/excess_ice_height.csv', row.names = FALSE)
 
 ggplot(ice_loss, aes(x = height/100, y = ice.height)) +
   geom_point()
