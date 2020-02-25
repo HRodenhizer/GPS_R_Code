@@ -517,7 +517,7 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
                    xend = max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
                    yend = model_ci$coefs[1] + model_ci$coefs[2]*max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE)),
                colour = 'black') +
-  scale_x_continuous(name = expression("Ice Height"[max]*" (cm)"),
+  scale_x_continuous(name = "Total Ice Height (cm)",
                      breaks = c(0.1, 0.2, 0.3, 0.4, 0.5),
                      labels = c(10, 20, 30, 40, 50)) +
   scale_y_continuous(name = expression("Measured "*Delta*" Elevation (cm)"),
@@ -557,6 +557,28 @@ ice_loss_model_table <- data.frame(Response = c('Subsidence', NA),
                              `R2 Conditional` = c(r.squared[2], NA),
                              AIC = c(AIC(model), NA))
 # write.csv(ice_loss_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_model_table.csv', row.names = FALSE)
+
+# plot of excess ice height vs. subsidence
+excess.ice.loss <- ggplot(ice_loss_2, aes(x = cumulative.excess.ice.height, y = sub, colour = treatment)) +
+  geom_point() +
+  scale_x_continuous(name = "Excess Ice Height (cm)",
+                     breaks = c(0.05, 0.1, 0.15, 0.2, 0.25),
+                     labels = c(5, 10, 15, 20, 25)) +
+  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (cm)"),
+                     breaks = c(-0.6, -0.4, -0.2, 0),
+                     labels = c(-60, -40, -20, 0)) +
+  scale_colour_manual(values = c("#006699", "#990000"),
+                      labels = c('Control', 'Warming'),
+                      name = '') +
+  scale_shape_discrete(name = '') +
+  theme_few() +
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10)) +
+  coord_fixed()
+excess.ice.loss
+
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/excess_ice_loss_potential_sub.jpg', excess.ice.loss, width = 95, height = 120, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/excess_ice_loss_potential_sub.pdf', excess.ice.loss, width = 95, height = 120, units = 'mm')
 ####################################################################################################################################
 
 ### Estimate subsidence from C loss ################################################################################################
