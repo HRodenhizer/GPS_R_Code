@@ -408,45 +408,45 @@ avg_ice_loss <- ice_loss_2 %>%
             se.potential.sub = sd(potential.sub, na.rm = TRUE)/sqrt(n()),
             se.gps.sub = sd(sub, na.rm = TRUE)/sqrt(n()))
 
-# model with total ice height
-model1 <- lmer(sub ~ cumulative.ice.height + treatment2 +
-                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = ice_loss_2,
-               control=lmerControl(check.conv.singular="warning"))
-
-summary(model1)
-
-model2 <- lmer(sub ~ cumulative.ice.height +
-                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = ice_loss_2,
-               control=lmerControl(check.conv.singular="warning"))
-
-summary(model2)
-
-AICc(model1, model2)
-
-# check model residuals of model2
-# look at residuals
-model2.resid <- resid(model2)
-model2.fitted <- fitted(model2)
-model2.sqrt <- sqrt(abs(resid(model2)))
-
-# graph
-par(mfrow=c(2,2), mar = c(4,4,3,2))
-plot(model2.fitted, model2.resid, main='resid, model2')
-plot(model2.fitted, model2.sqrt, main='sqrt resid, model2')
-qqnorm(model2.resid, main = 'model2')
-qqline(model2.resid)
-par(mfrow=c(1,1))
-
-hist(subpointsC$subsidence)
-
-# re-run better model with REML = TRUE
-model <- lmer(sub ~ cumulative.ice.height +
-                (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
-              data = ice_loss_2,
-              control=lmerControl(check.conv.singular="warning"))
-summary(model)
+# # model with total ice height
+# model1 <- lmer(sub ~ cumulative.ice.height + treatment2 +
+#                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+#                data = ice_loss_2,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model1)
+# 
+# model2 <- lmer(sub ~ cumulative.ice.height +
+#                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+#                data = ice_loss_2,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model2)
+# 
+# AICc(model1, model2)
+# 
+# # check model residuals of model2
+# # look at residuals
+# model2.resid <- resid(model2)
+# model2.fitted <- fitted(model2)
+# model2.sqrt <- sqrt(abs(resid(model2)))
+# 
+# # graph
+# par(mfrow=c(2,2), mar = c(4,4,3,2))
+# plot(model2.fitted, model2.resid, main='resid, model2')
+# plot(model2.fitted, model2.sqrt, main='sqrt resid, model2')
+# qqnorm(model2.resid, main = 'model2')
+# qqline(model2.resid)
+# par(mfrow=c(1,1))
+# 
+# hist(subpointsC$subsidence)
+# 
+# # re-run better model with REML = TRUE
+# model <- lmer(sub ~ cumulative.ice.height +
+#                 (1 | block2/fencegroup/wholeplot) + (1|time), REML = TRUE,
+#               data = ice_loss_2,
+#               control=lmerControl(check.conv.singular="warning"))
+# summary(model)
 r.squared <- r.squaredGLMM(model)
 
 # save model
@@ -455,16 +455,16 @@ r.squared <- r.squaredGLMM(model)
 model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
 
 # calculate confidence intervals to look at fixed effects
-model_ci <- extract_ci(model)
+# model_ci <- extract_ci(model)
 # write.csv(model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv', row.names = FALSE)
 model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv')
 
-predInt <- predictInterval(model, newdata = ice_loss_2, n.sims = 1000,
-                           returnSims = TRUE, level = 0.95)
-
-ice_loss_fit <- ice_loss_2 %>%
-  cbind.data.frame(predInt) %>%
-  dplyr::select(-geometry)
+# predInt <- predictInterval(model, newdata = ice_loss_2, n.sims = 1000,
+#                            returnSims = TRUE, level = 0.95)
+# 
+# ice_loss_fit <- ice_loss_2 %>%
+#   cbind.data.frame(predInt) %>%
+#   dplyr::select(-geometry)
 # write.csv(ice_loss_fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
 ice_loss_fit <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv')
 
@@ -482,30 +482,30 @@ ConfData <-  cbind( ConfData, confint( bootObj,  level=0.95 ))
 
 colnames(ConfData) <- c('cumulative.ice.height', 'lwr', 'upr')
 
-# model with potential sub calculated with excess ice and frost heave in pore spaces
-model1 <- lmer(sub ~ potential.sub + treatment2 +
-                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = ice_loss_2,
-               control=lmerControl(check.conv.singular="warning"))
-
-summary(model1)
-
-model2 <- lmer(sub ~ potential.sub +
-                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = ice_loss_2,
-               control=lmerControl(check.conv.singular="warning"))
-
-summary(model2)
-
-model3 <- lmer(sub ~ 1 +
-                 (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
-               data = ice_loss_2,
-               control=lmerControl(check.conv.singular="warning"))
-
-summary(model3)
-
-# potential subsidence from excess ice and pore space frost heave does not predict observed subsidence
-AICc(model1, model2, model3)
+# # model with potential sub calculated with excess ice and frost heave in pore spaces
+# model1 <- lmer(sub ~ potential.sub + treatment2 +
+#                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+#                data = ice_loss_2,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model1)
+# 
+# model2 <- lmer(sub ~ potential.sub +
+#                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+#                data = ice_loss_2,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model2)
+# 
+# model3 <- lmer(sub ~ 1 +
+#                  (1 | block2/fencegroup/wholeplot) + (1|alt.year), REML = FALSE,
+#                data = ice_loss_2,
+#                control=lmerControl(check.conv.singular="warning"))
+# 
+# summary(model3)
+# 
+# # potential subsidence from excess ice and pore space frost heave does not predict observed subsidence
+# AICc(model1, model2, model3)
 
 
 # continue with total ice height
@@ -517,10 +517,14 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
                    xend = max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE), 
                    yend = model_ci$coefs[1] + model_ci$coefs[2]*max(ice_loss_fit$cumulative.ice.height, na.rm = TRUE)),
                colour = 'black') +
-  scale_x_continuous(name = expression("Ice Height"[max]*" (m)")) +
-  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (m)")) +
+  scale_x_continuous(name = expression("Ice Height"[max]*" (cm)"),
+                     breaks = c(0.1, 0.2, 0.3, 0.4, 0.5),
+                     labels = c(10, 20, 30, 40, 50)) +
+  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (cm)"),
+                     breaks = c(-0.6, -0.4, -0.2, 0),
+                     labels = c(-60, -40, -20, 0)) +
   annotate(geom = 'text', 
-           x = 0.4125, 
+           x = 0.405, 
            y = 0.05, 
            label = paste('y = ', round(model_ci$coefs[1], 3), ' - ', round(model_ci$coefs[2], 3)*-1, 'x', sep = ''),
            size = 2.5) +

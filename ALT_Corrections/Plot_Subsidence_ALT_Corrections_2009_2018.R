@@ -606,45 +606,21 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
   geom_point(alpha = 0.5) +
   geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
   scale_color_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
-                     labels = c(paste('Control:  y = ', 
-                                      round((model2_ci$coefs[1])*100, 1), 
-                                      'x', 
-                                      sep = ''), 
-                                paste('Air Warming:  y = ', 
-                                      round((model2_ci$coefs[2])*100, 1), 
-                                      'x', 
-                                      sep = ''), 
-                                paste('Soil Warming:  y = ', 
-                                      round((model2_ci$coefs[3])*100, 1), 
-                                      'x', 
-                                      sep = ''),
-                                paste('Air + Soil Warming:  y = ', 
-                                      round(model2_ci$coefs[4]*100, 1), 
-                                      'x', 
-                                      sep = '')),
+                     labels = c(bquote("Control: y"==~.(round((model2_ci$coefs[1])*100, 1))~x^a), 
+                                bquote('Air Warming: y'==~.(round((model2_ci$coefs[2])*100, 1))~x^a), 
+                                bquote('Soil Warming: y'==~.(round((model2_ci$coefs[3])*100, 1))~x^b),
+                                bquote('Air + Soil Warming: y'==~.(round(model2_ci$coefs[4]*100, 1))~x^c)),
                      name = '') +
   scale_fill_manual(values = c("#006699", '#009900', "#990000", '#330000'),
-                    labels = c(paste('Control:  y = ', 
-                                     round((model2_ci$coefs[1])*100, 1), 
-                                     'x', 
-                                     sep = ''), 
-                               paste('Air Warming:  y = ', 
-                                     round((model2_ci$coefs[2])*100, 1), 
-                                     'x', 
-                                     sep = ''), 
-                               paste('Soil Warming:  y = ', 
-                                     round((model2_ci$coefs[3])*100, 1), 
-                                     'x', 
-                                     sep = ''),
-                               paste('Air + Soil Warming:  y = ', 
-                                     round(model2_ci$coefs[4]*100, 1), 
-                                     'x', 
-                                     sep = '')),
+                    labels = c(bquote("Control: y"==~.(round((model2_ci$coefs[1])*100, 1))~x^a), 
+                               bquote('Air Warming: y'==~.(round((model2_ci$coefs[2])*100, 1))~x^a), 
+                               bquote('Soil Warming: y'==~.(round((model2_ci$coefs[3])*100, 1))~x^b),
+                               bquote('Air + Soil Warming: y'==~.(round(model2_ci$coefs[4]*100, 1))~x^c)),
                      name = '') +
   scale_x_continuous(breaks = seq(0, 9),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
-  scale_y_continuous(name = '\u0394 Elevation',
+  scale_y_continuous(name = '\u0394 Elevation (cm)',
                      breaks = seq(-0.9, 0.1, .1),
                      labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
@@ -777,13 +753,14 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
         axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0,0),
         legend.position=c(0.01,0.01),
-        legend.box = 'horizontal',
+        legend.margin = margin(0, 0, 0, 0),
+        legend.direction = 'horizontal',
         plot.title = element_text(hjust = 0.5),
         panel.spacing = unit(1, "lines"))
 gtest2
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 6, width = 9.5)
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 6, width = 9.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 150, width = 190, units = 'mm')
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 150, width = 190, units = 'mm')
 
 
 # soil profile graphs

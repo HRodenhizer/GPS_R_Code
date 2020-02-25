@@ -8,6 +8,7 @@ library(sf)
 library(sp)
 library(raster)
 library(ggmap)
+library(maps)
 library(ggthemes)
 library(viridis)
 library(RStoolbox)
@@ -115,6 +116,8 @@ coords_norm <- coords_bbox %>%
   group_by(block) %>%
   rbind.data.frame(filter(., x == first(x) & y == first(y))) %>%
   arrange(block)
+
+blocks <- c('A', 'B', 'C')
 
 coords_list <- map(blocks,
                    ~ filter(coords_norm, block == .x))
@@ -380,15 +383,17 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   theme_few() +
   scale_fill_gradient(low = '#000000', high = '#DDDDDD',
                       guide = FALSE) +
-  scale_x_continuous(limits = c(389000, 391000),
+  scale_x_continuous(name = 'Longitude (m)',
+                     limits = c(389000, 391000),
                      expand = c(0,0)) +
-  scale_y_continuous(limits = c(7085000, 7087000),
+  scale_y_continuous(name = 'Latitude (m)',
+                     limits = c(7085000, 7087000),
+                     breaks = c(7085000, 7085500, 7086000),
                      expand = c(0,0)) +
   scale_colour_manual(values = c('#cc3300', 'black'),
                       labels = c('CiPEHR', 'Tower'),
                       name = '')+
   theme(text = element_text(size = 12),
-        axis.title = element_blank(),
         axis.text = element_text(size = 10),
         aspect.ratio = 1,
         plot.margin = unit(c(0, 10, 0, 5), "mm")) +
@@ -396,9 +401,9 @@ emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
 
 fullmap <- emlmap +
   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
-  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389555, ymin = 7086365, ymax = Inf) +
-  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389555, xmax = 390110, ymin = 7086365, ymax = Inf) +
-  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390110, xmax = 391000, ymin = 7086365, ymax = Inf)
+  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389550, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389550, xmax = 390100, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390100, xmax = 391000, ymin = 7086365, ymax = Inf)
 fullmap
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 150, units = 'mm')
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.pdf', fullmap, width = 190, height = 150, units = 'mm', device=cairo_pdf)
@@ -409,3 +414,4 @@ fullmap
 #   annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389535, ymin = 7086385, ymax = Inf) +
 #   annotation_custom(grob = block_figure_grobs[[2]], xmin = 389535, xmax = 390070, ymin = 7086385, ymax = Inf) +
 #   annotation_custom(grob = block_figure_grobs[[3]], xmin = 390070, xmax = 391000, ymin = 7086385, ymax = Inf)
+##############################################################################################################

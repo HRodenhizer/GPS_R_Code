@@ -8,7 +8,6 @@
 # load libraries
 library(raster)
 library(rgdal)
-library(tidyverse)
 library(ggthemes)
 library(viridis)
 library(ggsn)
@@ -17,10 +16,11 @@ library(maptools)
 library(plot3D)
 library(magick)
 library(sf)
+library(tidyverse)
 
 ##################### Import raster files ##############################################
 filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/', full.names = TRUE)
-Elevation_fill <- list(brick(filenames[2]), brick(filenames[4]), brick(filenames[6]))
+Elevation_fill <- list(brick(filenames[2]), brick(filenames[5]), brick(filenames[8]))
 # load extent data
 blocks <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
 blocks11 <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly_2011.shp')
@@ -41,14 +41,13 @@ for (i in 1:length(Elevation_fill)){ # repeat over each block
 # CiPEHR
 subsidenceC <- list()
 for (i in 1:length(Elevation_fill)) {
-  sub_stack <- stack()
+  subsidenceC[[i]] <- stack()
   for (k in 2:nlayers(Elevation_fill[[i]])) {
    temp_raster <- Elevation_fill[[i]][[k]] - Elevation_fill[[i]][[1]]
-   sub_stack <- mask(stack(sub_stack, temp_raster), blocks)
+   subsidenceC[[i]] <- mask(stack(subsidenceC[[i]], temp_raster), blocks)
   }
-  subsidenceC[[i]] <- sub_stack
-  names(subsidenceC[[i]]) <- paste('year', seq(2010, 2018), sep = '')
-  rm(temp_raster, i, k, sub_stack)
+  names(subsidenceC[[i]]) <- paste('year', seq(2010, 2010+k-2), sep = '')
+  rm(temp_raster, i, k)
 }
 
 # DryPEHR
@@ -60,7 +59,7 @@ for (i in 1:length(Elevation_fill)) {
     sub_stack <- mask(stack(sub_stack, temp_raster), blocks11)
   }
   subsidenceD[[i]] <- sub_stack
-  names(subsidenceD[[i]]) <- paste('year', seq(2012, 2018), sep = '')
+  names(subsidenceD[[i]]) <- paste('year', seq(2012, 2012+k-4), sep = '')
   rm(temp_raster, i, k, sub_stack)
 }
 
@@ -176,8 +175,10 @@ sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long
   facet_grid(block ~ year) +
   coord_fixed() +
   theme_few() +
-  scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.5)) +
+  scale_fill_viridis(expression(Delta*" Elevation (cm)"),
+                     limits = c(-1.0, 0.5),
+                     breaks = c(-1.0, -0.5, 0, 0.5),
+                     labels = c(-100, -50, 0, 50)) +
   scale_color_manual(name = '',
                      labels = c('Snow Fence',# 'Frost Heave', 
                                 'Control', 'Soil Warming'), # if comments are removed, frost heave is highlighted if >20 cm

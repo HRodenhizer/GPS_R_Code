@@ -61,6 +61,7 @@ for(j in 1:length(unique(Grids2018$block))) { # iterate for each block
   assign(name1, tmp) # add sp object to list
   rm(j, name, name1, tmp) # remove unneccessary objects from environment
 }
+########################################################################################
 
 ##############################Calculate and fit variograms##############################
 #a2018
