@@ -447,12 +447,12 @@ avg_ice_loss <- ice_loss_2 %>%
 #               data = ice_loss_2,
 #               control=lmerControl(check.conv.singular="warning"))
 # summary(model)
-r.squared <- r.squaredGLMM(model)
 
 # save model
 # saveRDS(model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
 
 model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
+r.squared <- r.squaredGLMM(model)
 
 # calculate confidence intervals to look at fixed effects
 # model_ci <- extract_ci(model)
@@ -524,7 +524,7 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
                      breaks = c(-0.6, -0.4, -0.2, 0),
                      labels = c(-60, -40, -20, 0)) +
   annotate(geom = 'text', 
-           x = 0.405, 
+           x = 0.4, 
            y = 0.05, 
            label = paste('y = ', round(model_ci$coefs[1], 3), ' - ', round(model_ci$coefs[2], 3)*-1, 'x', sep = ''),
            size = 2.5) +

@@ -621,8 +621,9 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
   scale_y_continuous(name = '\u0394 Elevation (cm)',
-                     breaks = seq(-0.9, 0.1, .1),
-                     labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
+                     limits = c(-1, 0.1),
+                     breaks = seq(-1, 0.1, .1),
+                     labels = c(-100, '', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
   theme(text = element_text(size = 12),
         axis.text = element_text(size = 10),
@@ -630,9 +631,10 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
         legend.justification=c(0, 0),
         legend.position=c(0.01, 0.01),
         legend.title = element_blank(),
+        legend.margin = margin(0, 0, 0, 0),
         plot.title = element_text(hjust = 0.5)) +
   coord_fixed(ratio = 10) +
-  annotate('text', x = 0.7, y = -0.7, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
+  annotate('text', x = 0.4, y = -0.672, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
 
 
 mixed.model.graph
@@ -820,7 +822,7 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
         legend.title = element_blank(),
         legend.margin = margin(unit(c(-5, 0, -10, 0), unit = 'mm')),
         legend.background = element_blank(),
-        legend.box.background = element_rect(color="grey30", size=.5),
+        legend.box.background = element_rect(color="grey30", size=.5, fill = 'white'),
         legend.box.margin = margin(unit(c(5, 5, 15, 5), units = 'mm')),
         panel.spacing = unit(1, "lines")) + 
   guides(linetype = guide_legend(order = 1),
