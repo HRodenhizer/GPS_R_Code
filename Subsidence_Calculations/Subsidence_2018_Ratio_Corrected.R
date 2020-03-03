@@ -8,7 +8,6 @@
 # load libraries
 library(raster)
 library(rgdal)
-library(tidyverse)
 library(ggthemes)
 library(viridis)
 library(ggsn)
@@ -17,10 +16,11 @@ library(maptools)
 library(plot3D)
 library(magick)
 library(sf)
+library(tidyverse)
 
 ##################### Import raster files ##############################################
 filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks/', full.names = TRUE)
-Elevation_fill <- list(brick(filenames[2]), brick(filenames[4]), brick(filenames[6]))
+Elevation_fill <- list(brick(filenames[2]), brick(filenames[5]), brick(filenames[8]))
 # load extent data
 blocks <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly.shp')
 blocks11 <- readOGR('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Blocks_Poly_2011.shp')
@@ -41,14 +41,13 @@ for (i in 1:length(Elevation_fill)){ # repeat over each block
 # CiPEHR
 subsidenceC <- list()
 for (i in 1:length(Elevation_fill)) {
-  sub_stack <- stack()
+  subsidenceC[[i]] <- stack()
   for (k in 2:nlayers(Elevation_fill[[i]])) {
    temp_raster <- Elevation_fill[[i]][[k]] - Elevation_fill[[i]][[1]]
-   sub_stack <- mask(stack(sub_stack, temp_raster), blocks)
+   subsidenceC[[i]] <- mask(stack(subsidenceC[[i]], temp_raster), blocks)
   }
-  subsidenceC[[i]] <- sub_stack
-  names(subsidenceC[[i]]) <- paste('year', seq(2010, 2018), sep = '')
-  rm(temp_raster, i, k, sub_stack)
+  names(subsidenceC[[i]]) <- paste('year', seq(2010, 2010+k-2), sep = '')
+  rm(temp_raster, i, k)
 }
 
 # DryPEHR
@@ -60,7 +59,7 @@ for (i in 1:length(Elevation_fill)) {
     sub_stack <- mask(stack(sub_stack, temp_raster), blocks11)
   }
   subsidenceD[[i]] <- sub_stack
-  names(subsidenceD[[i]]) <- paste('year', seq(2012, 2018), sep = '')
+  names(subsidenceD[[i]]) <- paste('year', seq(2012, 2012+k-4), sep = '')
   rm(temp_raster, i, k, sub_stack)
 }
 
@@ -126,7 +125,10 @@ min.coords <- Subsidence.df %>%
 Subsidence.df <- Subsidence.df %>%
   left_join(min.coords, by = 'block') %>%
   mutate(long.norm = round(x - x.min), # have to round due to bug in ggplot. Details here: https://stackoverflow.com/questions/18157975/combine-geom-tile-and-facet-grid-facet-wrap-and-remove-space-between-tiles-gg
-         lat.norm = round(y - y.min)) %>%
+         lat.norm = round(y - y.min),
+         sub.color = as.factor(ifelse(Sub > 0.2,
+                                      1,
+                                      NA))) %>%
   select(-x.min, -y.min)
 
 Fences.norm <- Fences %>%
@@ -165,31 +167,37 @@ sub_map_filled <- ggplot(Subsidence.df, aes(x=long.norm, y=lat.norm, fill=Sub)) 
 sub_map_filled
 
 # map without gapfilled data
-sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long.norm, y=lat.norm, fill=Sub)) +
-  geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
+sub_map <- ggplot(subset(Subsidence.df, year == 2011 | year >= 2015), aes(x=long.norm, y=lat.norm)) +
+  geom_tile(aes(height = 2, width = 2, fill = Sub)) + # have to set height and width due to bug. See note/link above.
+  # geom_tile(aes(height = 2, width = 2, color = sub.color), fill = 'transparent', size = 0.5) +
   geom_path(data = Fences.norm, aes(x=long.norm, y=lat.norm, group=group, color = dummy), inherit.aes = FALSE) +
   geom_path(data = treatments, aes(x = x, y = y, color = treatment), size = 1, inherit.aes = FALSE) +
   facet_grid(block ~ year) +
   coord_fixed() +
   theme_few() +
-  scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.5)) +
+  scale_fill_viridis(expression(Delta*" Elevation (cm)"),
+                     limits = c(-1.0, 0.5),
+                     breaks = c(-1.0, -0.5, 0, 0.5),
+                     labels = c(-100, -50, 0, 50)) +
   scale_color_manual(name = '',
-                     labels = c('Snow Fence', 'Control', 'Soil Warming'),
-                     values = c('#000000', "#006666", "#CC3300")) +
+                     labels = c('Snow Fence',# 'Frost Heave', 
+                                'Control', 'Soil Warming'), # if comments are removed, frost heave is highlighted if >20 cm
+                     values = c('#000000',# '#FDE725FF', 
+                                "#006666", "#CC3300")) +
   scale_x_continuous(name = 'Distance (m)') +
   scale_y_continuous(name = 'Distance (m)') +
   theme(aspect.ratio = 1,
         plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 8),
-        strip.text.y = element_text(angle = 0)) +
+        text = element_text(size = 12),
+        strip.text.y = element_text(angle = 0),
+        axis.text = element_text(size = 10)) +
   guides(color = guide_legend(label.position = "top",
                               label.hjust = 0)) 
 
 sub_map
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.jpg', sub_map, width = 190, height = 105, units = 'mm')
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.pdf', sub_map, width = 190, height = 105, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.jpg', sub_map, width = 190, height = 100, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_v2.pdf', sub_map, width = 190, height = 100, units = 'mm')
 ########################################################################################
 
 ### Read in Variance data for graphing #################################################

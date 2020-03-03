@@ -9,7 +9,7 @@ library(readxl)
 library(ggthemes)
 
 # load data
-soil_09_13 <- read_excel("Z:/Schuur Lab/New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009-2013 CiPEHR Processed SOIL DATA_César.xlsx",
+soil_09_13 <- read_excel("Z:/Schuur Lab/2020 New_Shared_Files/DATA/CiPEHR & DryPEHR/Soil Cores/2009-2013 CiPEHR Processed SOIL DATA_César.xlsx",
                          sheet = 1) %>%
   separate(depth.cat, c('depth0', 'depth1'), sep = '-', remove = FALSE) %>%
   mutate(depth0 = as.numeric(depth0),
@@ -100,7 +100,6 @@ carbonchange <- data.frame(treatment = c('Control', 'Warming'),
          se.raw = sqrt(Se.18.raw^2 + Se.09^2),
          percent.change = (diff.ratio/diff.raw-1)*100,
          se.percent.change = sqrt((se.ratio/diff.ratio)^2 + (se.raw/diff.raw)^2)*100)
-  
 
 avail_c <- carbonchange %>%
   gather(key = type, value = avail.c, diff.ratio:se.raw) %>%

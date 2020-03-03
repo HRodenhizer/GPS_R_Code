@@ -5,47 +5,42 @@
 
 ### Load Libraries ###########################################################################################
 library(sf)
-library(tidyverse)
 library(sp)
 library(raster)
 library(ggmap)
+library(maps)
 library(ggthemes)
 library(viridis)
 library(RStoolbox)
 library(ggpubr)
+library(Rmisc)
+library(tidyverse)
 ##############################################################################################################
 
 ### Load Data ################################################################################################
-points2009 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2009_SPCSAK4_corrected.shp')
-points2011 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2011_SPCSAK4_corrected.shp')
-points2015 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2015_SPCSAK4_corrected.shp')
-points2016 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2016_SPCSAK4.shp')
 points2018 <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2018_SPCSAK4.shp')
 emlpoints <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Sites.shp')
-filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7085000_DTM.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_389000_7086000_DTM.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_390000_7085000_DTM.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif/NEON_D19_HEAL_DP3_390000_7086000_DTM.tif')
-emldtm <- raster::merge(raster(filenames[1]),
-                        raster(filenames[2]),
-                        raster(filenames[3]),
-                        raster(filenames[4])) # only the four tiles right around eml
-filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7085000_image.tif',
-               'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7086000_image.tif')
-emlrgb <- raster::merge(brick(filenames[1]),
-                        brick(filenames[2])) # only the two tiles right around cipehr
-# filenames <- list.files('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2017/DTMGtif', full.names = TRUE)
-# neondtm <- raster(filenames[1])
-# for (i in 2:length(filenames)) {
-#   neondtm <- raster::merge(neondtm, raster(filenames[i]))
-# }
-rm(filenames)
+cores09 <- c('ww1.2', 'ww1.3', 'ww2.1', 'ww2.4', 'ww3.2', 'ww3.4', 'ww4.1', 'ww4.3', 'ww5.2', 'ww5.3', 'ww6.2', 'ww6.4')
+cores <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
+  filter(Name %in% cores09)
+plots <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp")
+fences <- st_read('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/Fences.shp')
+emldtm <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/DTM_All/NEON_DTM_2017.tif') %>%
+  crop(y = extent(389000, 391000, 7085000, 7087000)) # the whole thing - needs to be clipped
+# filenames <- c('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7085000_image.tif',
+#                'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/Airborne_Data_2018/2018_HEAL_RGB/L3/Camera/Mosaic/V01/2018_HEAL_2_390000_7086000_image.tif')
+# emlrgb <- raster::merge(brick(filenames[1]),
+#                         brick(filenames[2])) # only the two tiles right around cipehr
+# rm(filenames)
 ##############################################################################################################
 
-### Select/clip to CiPEHR ####################################################################################
+### Select/clip to CiPEHR and normalize data to each block ###################################################
+### save crs to use for all data
 spcsak4 <- st_crs(points2018)[[2]]
 
-# transects as done with stakeout
+
+### create data frames used to clip and normalize all block data for graphing
+# select only transects from point data and format
 transects2018 <- points2018 %>%
   st_zm() %>%
   mutate(Name = as.numeric(as.character(Name))) %>%
@@ -59,62 +54,82 @@ transects2018 <- points2018 %>%
                                'C'))) %>%
   dplyr::select(X, Y, block)
 
-# transects as originally done
-transects2009 <- points2009 %>%
-  filter(type == 'fence' | type == 'trans') %>%
-  cbind.data.frame(st_coordinates(.)) %>%
-  st_as_sf() %>%
-  mutate(block = ifelse(fence == 1 | fence == 2,
-                        'A',
-                        ifelse(fence == 3 | fence == 4,
-                               'B',
-                               'C'))) %>%
-  dplyr::select(X, Y, block)
+# create a data frame with transect corner points buffered to have equal areas among the 3 blocks
+# used to clip the rgb data
+coords_bbox <- transects2018 %>%
+  as.data.frame() %>%
+  group_by(block) %>%
+  summarise(xmin = min(X),
+            xmax = max(X),
+            ymin = min(Y),
+            ymax = max(Y))
 
-transects2011 <- points2011 %>%
-  filter(type == 'fence' | type == 'a' | type == 'b' | type == 'c') %>%
-  cbind.data.frame(st_coordinates(.)) %>%
-  st_as_sf() %>%
-  mutate(block = ifelse(fence == 1 | fence == 2,
-                        'A',
-                        ifelse(fence == 3 | fence == 4,
-                               'B',
-                               'C'))) %>%
-  dplyr::select(X, Y, block)
+# create a buffered polygon for clipping images
+coords_buffer <- coords_bbox %>%
+  mutate(xdist = xmax - xmin,
+         ydist = ymax - ymin,
+         xmin = ifelse(xdist < 50, # adjust the min and max coordinates out to include an entire 50 meter distance in both x and y directions
+                       xmin - (50 - xdist)/2,
+                       NA),
+         xmax = ifelse(xdist < 50,
+                       xmax + (50 - xdist)/2,
+                       NA),
+         ymin = ifelse(ydist < 50,
+                       ymin - (50 - ydist)/2,
+                       NA),
+         ymax = ifelse(ydist < 50,
+                       ymax + (50 - ydist)/2,
+                       NA)) %>%
+  gather(key = 'x.min.max',
+         value = 'x',
+         xmin:xmax) %>%
+  gather(key = 'y.min.max',
+         value = 'y',
+         ymin:ymax) %>%
+  arrange(block) %>%
+  select(-x.min.max, -y.min.max, - xdist, -ydist) %>%
+  st_as_sf(coords = c('x', 'y'), crs = spcsak4, remove = FALSE)
 
-# will have to filter geographically
-transects2015 <- points2015 %>%
-  filter(type == 'fence' | type == 'trans') %>%
-  cbind.data.frame(st_coordinates(.)) %>%
-  st_as_sf() %>%
-  mutate(block = ifelse(fence == 1 | fence == 2,
-                        'A',
-                        ifelse(fence == 3 | fence == 4,
-                               'B',
-                               'C'))) %>%
-  dplyr::select(X, Y, block)
+# data frame with min coordinates
+# used to normalize all block data
+coords_min <- coords_buffer %>%
+  st_drop_geometry() %>%
+  group_by(block) %>%
+  summarise(xmin = min(x),
+            ymin = min(y))
 
-transects2016 <- points2016 %>%
-  st_zm() %>%
-  filter(Type == 'fence' | Type == 'trans') %>%
-  cbind.data.frame(st_coordinates(.)) %>%
-  st_as_sf() %>%
-  arrange(X, Y) %>%
-  mutate(block = c(rep('A', 212), rep('B', 192), rep('C', 219))) %>%
-  dplyr::select(X, Y, block)
+# create a data frame with the transect corner points normalized
+coords_norm <- coords_bbox %>%
+  gather(key = 'x.min.max',
+         value = 'x',
+         xmin:xmax) %>%
+  gather(key = 'y.min.max',
+         value = 'y',
+         ymin:ymax) %>%
+  arrange(block) %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(x - xmin),
+         y = round(y - ymin),
+         order = rep(c(1, 2, 4, 3), 3)) %>%
+  arrange(block, order) %>%
+  select(block, x, y) %>%
+  group_by(block) %>%
+  rbind.data.frame(filter(., x == first(x) & y == first(y))) %>%
+  arrange(block)
 
-# ifelse(nrow(st_crop(., filter(transects2018, block == 'A'))) > 1,
-#        'A',
-#        ifelse(nrow(st_crop(., filter(transects2018, block == 'B'))) > 1,
-#               'B',
-#               'C'))
+blocks <- c('A', 'B', 'C')
 
+coords_list <- map(blocks,
+                   ~ filter(coords_norm, block == .x))
+
+### create data frame with tower and block locations
 # start getting three block locations
 cipehrblocks <- emlpoints %>%
   filter(Exp == 'CiPEHR') %>%
   st_transform(crs = st_crs(emldtm))
 
 # overall cipehr location
+# used in overview map of ak
 cipehr <- cipehrblocks %>%
   st_transform(crs = 4326) %>%
   cbind.data.frame(st_coordinates(.)) %>%
@@ -126,7 +141,18 @@ cipehr <- cipehrblocks %>%
 cipehrblocks <- cipehrblocks %>%
   cbind.data.frame(st_coordinates(.))
 
-# create hillshade of dtm
+# cipehr sites and ec tower
+# used to show site locations over hillshade of eml area
+blocks_tower <- cipehrblocks %>%
+  rbind.data.frame(data.frame(Id = 0,
+                              Exp = 'EC Tower',
+                              Block = 'Eddy Covariance Tower',
+                              geometry = st_sfc(st_point(c(389400.000000000, 7085595.000000000))),
+                              X = 389400.000000000,
+                              Y = 7085595.000000000))
+
+
+### create hillshade of eml area from dtm
 plot(emldtm)
 emlslope <- terrain(emldtm, opt = 'slope')
 plot(emlslope)
@@ -140,210 +166,144 @@ rm(emlslope, emlaspect)
 emlhillshd.df <- as.data.frame(emlhillshd, xy = TRUE)
 rm(emlhillshd, emldtm)
 
-# clip emlrgb to three separate rasters for each block and transform to SPCS AK 4 - this whole section will take awhile!
-emlrgb <- reclassify(emlrgb, cbind(NA, -9999))
-emlrgb <- projectRaster(emlrgb, crs = spcsak4)
 
-buffer2018 <- transects2018 %>%
-  as.data.frame() %>%
-  group_by(block) %>%
-    summarise(xmin = min(X)-5,
-            xmax = max(X)+5,
-            ymin = min(Y)-5,
-            ymax = max(Y)+5) %>%
-  gather(key = xtype, value = X, xmin:xmax) %>%
-  gather(key = ytype, value = Y, ymin:ymax) %>%
-  dplyr::select(X, Y, block) %>%
-  st_as_sf(coords = c('X', 'Y'), crs = spcsak4, remove = FALSE) %>%
-  rbind.data.frame(transects2018) %>%
-  arrange(block, X, Y)
 
-blockimagery <- list()
-for (i in 1:length(cipehrblocks$Block)) {
- blockimagery[[i]] <- crop(emlrgb, as(subset(buffer2018, block == c('A', 'B', 'C')[i]), 'Spatial'))
- rm(i)
+# clip emlrgb to three separate rasters for each block and transform to SPCS AK 4
+### this whole section will take awhile! ###
+# the output has been saved as an r file and can be loaded in directly now!
+
+
+# emlrgb <- reclassify(emlrgb, cbind(NA, -9999))
+# emlrgb <- projectRaster(emlrgb, crs = spcsak4)
+# 
+# blockimagery <- list()
+# for (i in 1:length(cipehrblocks$Block)) {
+#  blockimagery[[i]] <- crop(emlrgb, as(subset(coords_bbox, block == c('A', 'B', 'C')[i]), 'Spatial'))
+#  rm(i)
+# }
+
+# saveRDS(blockimagery, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/blockimagery.rds')
+blockimagery <- readRDS('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/Remote Sensing/NEON/blockimagery.rds')
+
+# convert blockimagery to dataframe, normalize, and convert back to raster
+blocks <- list('A', 'B', 'C')
+blockimagery_df_norm <- map2(blockimagery,
+                            blocks,
+                           ~ as(.x, 'SpatialPixelsDataFrame') %>%
+                             as.data.frame() %>%
+                             mutate(block = .y) %>%
+                             left_join(coords_min, by = c('block')) %>%
+                             mutate(x = x - xmin,
+                                    y = y - ymin) %>%
+                             select(-xmin, -ymin))
+
+blockimagery_norm <- list()
+for (i in 1:length(blockimagery_df_norm)) {
+  temp1 <- blockimagery_df_norm[[i]] %>%
+    select(x, y, r = layer.1) %>%
+    rasterFromXYZ()
+  temp2 <- blockimagery_df_norm[[i]] %>%
+    select(x, y, g = layer.2) %>%
+    rasterFromXYZ()
+  temp3 <- blockimagery_df_norm[[i]] %>%
+    select(x, y, b = layer.3) %>%
+    rasterFromXYZ()
+  blockimagery_norm[[i]] <- brick(temp1, temp2, temp3)
+  rm(temp1, temp2, temp3)
 }
 
 
+### normalize fence and core data
+# format the labels for the fences
+fences_norm <- fences %>%
+  mutate(fence = as.numeric(Id),
+         block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence >= 5,
+                               'C',
+                               'B')))
 
-# rgbnorm <- list()
-# tran2018norm <- data.frame()
-# 
-# for (i in 1:length(blockimagery)) {
-#   minx <- blockimagery[[i]]@extent@xmin
-#   miny <- blockimagery[[i]]@extent@ymin
-#   temp <- as.data.frame(blockimagery[[i]], xy = TRUE) %>%
-#     mutate(x = round(x - minx),
-#            y = round(y - miny),
-#            block = c('A', 'B', 'C')[i]) %>%
-#     rename(r = layer.1,
-#            g = layer.2,
-#            b = layer.3)
-#   
-#   rgbnorm[[i]] <- temp
-#   temp <- transects2018 %>%
-#     filter(Name >= 10000 + (i-1)*1000 & Name < 10000 + i*1000) %>%
-#     cbind.data.frame(st_coordinates(.)) %>%
-#     mutate(X = round(X - minx),
-#            Y = round(Y - miny),
-#            block = c('A', 'B', 'C')[i]) %>%
-#     dplyr::select(X, Y, block)
-#   tran2018norm <- rbind.data.frame(tran2018norm, temp)
-#   rm(temp, i)
-# }
+# extract the fence coordinates from the geometry column
+fence_coords <- as.data.frame(st_coordinates(fences_norm)) %>%
+  rename(Id = L1)
+
+# join the coordinates to the fence dataset, join the min x and y values for each block, and set each SW corner of the block to the coords 0,0
+fences_norm <- fences_norm %>%
+  st_drop_geometry() %>%
+  full_join(fence_coords, by = c('Id')) %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(X - xmin),
+         y = round(Y - ymin)) %>%
+  select(block, fence, x, y)
+
+# make a list with the fence information for each block
+fences_list <- map(blocks,
+                   ~filter(fences_norm, block == .x))
+
+# format the core data
+cores_norm <- cores %>%
+  separate(Name, into = c('fence', 'plot')) %>%
+  mutate(fence = as.numeric(str_sub(fence, start = 3)),
+         block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence >= 5,
+                               'C',
+                               'B')),
+         treatment = factor(ifelse(plot <= 2,
+                                   'Control',
+                                   'Soil Warming'),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming')),
+         shape = 'dot') %>%
+  st_zm() %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(Easting - xmin),
+         y = round(Northing - ymin)) %>%
+  select(block, fence, plot, treatment, shape, x, y)
+
+cores_list <- map(blocks,
+                  ~filter(cores_norm, block == .x))
+
+# format the plot data
+plots_norm <- plots %>%
+  filter(exp == 'CiPEHR') %>%
+  mutate(block = ifelse(fence <= 2,
+                        'A',
+                        ifelse(fence <= 4,
+                               'B',
+                               'C')),
+         plot = as.numeric(as.character(plot)),
+         treatment = factor(ifelse(plot == 2 | plot == 4,
+                                   'Control',
+                                   ifelse(plot == 1 | plot == 3,
+                                          'Air Warming',
+                                          ifelse(plot == 6 | plot == 8,
+                                                 'Soil Warming',
+                                                 'Air & Soil Warming'))),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming')),
+         shape = 'square') %>%
+  st_drop_geometry() %>%
+  full_join(coords_min, by = c('block')) %>%
+  mutate(x = round(Easting - xmin),
+         y = round(Northing - ymin)) %>%
+  select(block, fence, plot, treatment, shape, x, y)
+
+plots_list <- map(blocks,
+                  ~ filter(plots_norm, block == .x))
 ##############################################################################################################
 
 ### Plot block location over hillshade #######################################################################
-# better to have 2009 and 2018 separate or together? Is it worth using the imagery? It looks really busy.
-emlimageA <- ggRGB(blockimagery[[1]], r = 1, g = 2, b = 3, stretch = 'lin')
-emlimageB <- ggRGB(blockimagery[[2]], r = 1, g = 2, b = 3, stretch = 'lin')
-emlimageC <- ggRGB(blockimagery[[3]], r = 1, g = 2, b = 3, stretch = 'lin')
+emlimages <- map(blockimagery_norm,
+                 ~ggRGB(.x, r = 1, g = 2, b = 3, stretch = 'lin', alpha = 0.7))
 
-A2009 <- emlimageA +
-  geom_point(data = subset(transects2016, block == 'A'), aes(x = X, y = Y, color = '2016'), inherit.aes = FALSE, size = 1) +
-  geom_point(data = subset(transects2015, block == 'A'), aes(x = X, y = Y, color = '2015'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-  geom_point(data = subset(transects2011, block == 'A'), aes(x = X, y = Y, color = '2011'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-  geom_point(data = subset(transects2009, block == 'A'), aes(x = X, y = Y, color = '2009'), inherit.aes = FALSE, size = 1, alpha = 0.5) +
-  scale_color_manual(values = c('2009' = 'white', '2011' = '#CCCCCC', '2015' = '#666666', '2016' = 'black')) +
-  ggtitle('A') +
-  theme_few() +
-  scale_x_continuous(limits = c(537922, 537972),
-                     breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
-                     labels = c(seq(0, 50, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1100957, 1101007),
-                     breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
-                     labels = c(seq(0, 50, 10)),
-                     name = '2009 - 2016',
-                     expand = c(0, 0)) +
-  theme(axis.title.x = element_blank(),
-        axis.title.y = element_text(size = 12), axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        legend.title = element_blank(),
-        legend.justification = c(0, 0),
-        legend.position = c(0.0025, 0),
-        legend.text = element_text(size = 8),
-        legend.margin = margin(t = 0, b = 2, r = 2),
-        legend.key.height = unit(0.5, 'line'),
-        plot.margin = unit(c(10, 0, 0, 0), "mm"))
 
-B2009 <- emlimageB +
-  geom_point(data = subset(transects2016, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
-  geom_point(data = subset(transects2015, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
-  geom_point(data = subset(transects2011, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
-  geom_point(data = subset(transects2009, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
-  ggtitle('B') +
-  theme_few() +
-  scale_x_continuous(limits = c(537983, 538028),
-                     breaks = c(537983, 537993, 538003, 538013, 538023),
-                     labels = c(seq(0, 40, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1101090, 1101142),
-                     breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
-                     labels = c(seq(0, 50, 10)),
-                     name = '2009 - 2016',
-                     expand = c(0, 0)) +
-  theme(axis.title = element_blank(),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        plot.margin = unit(c(10, 0, 0, 0), "mm"))
-
-C2009 <- emlimageC +
-  geom_point(data = subset(transects2016, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, color = 'black') +
-  geom_point(data = subset(transects2015, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#666666') +
-  geom_point(data = subset(transects2011, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = '#CCCCCC') +
-  geom_point(data = subset(transects2009, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1, alpha = 0.5, color = 'white') +
-  ggtitle('C') +
-  theme_few() +
-  scale_x_continuous(limits = c(538103, 538149),
-                     breaks = c(538103, 538113, 538123, 538133, 538143),
-                     labels = c(seq(0, 40, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1101012, 1101062),
-                     breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
-                     labels = c(seq(0, 50, 10)),
-                     name = '2009 - 2016',
-                     expand = c(0, 0)) +
-  theme(axis.title = element_blank(),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        plot.margin = unit(c(10, 0, 0, 0), "mm"))
-
-# figure <- ggarrange(A2009, B2009, C2009, ncol = 3, nrow = 1)
-# figure
-
-A2018 <- emlimageA +
-  geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-  theme_few() +
-  scale_x_continuous(limits = c(537922, 537972),
-                     breaks = c(537922, 537932, 537942, 537952, 537962, 537972),
-                     labels = c(seq(0, 50, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1100957, 1101007),
-                     breaks = c(1100957, 1100967, 1100977, 1100987, 1100997, 1101007),
-                     labels = c(seq(0, 50, 10)),
-                     name = '2017 - 2018',
-                     expand = c(0, 0)) +
-  ggtitle('') +
-  theme(axis.title.x = element_blank(),
-        axis.title.y = element_text(size = 12),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        plot.margin = unit(c(0, 0, 10, 0), "mm"))
-
-B2018 <- emlimageB +
-  geom_point(data = subset(transects2018, block == 'B'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-  theme_few() +
-  scale_x_continuous(limits = c(537983, 538028),
-                     breaks = c(537983, 537993, 538003, 538013, 538023),
-                     labels = c(seq(0, 40, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1101090, 1101142),
-                     breaks = c(1101090, 1101100, 1101110, 1101120, 1101130, 1101140),
-                     labels = c(seq(0, 50, 10)),
-                     expand = c(0, 0)) +
-  ggtitle('') +
-  theme(axis.title = element_blank(),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        plot.margin = unit(c(0, 0, 10, 0), "mm"))
-
-C2018 <- emlimageC +
-  geom_point(data = subset(transects2018, block == 'C'), aes(x = X, y = Y), inherit.aes = FALSE, size = 1) +
-  theme_few() +
-  scale_x_continuous(limits = c(538103, 538149),
-                     breaks = c(538103, 538113, 538123, 538133, 538143),
-                     labels = c(seq(0, 40, 10)),
-                     expand = c(0, 0)) +
-  scale_y_continuous(limits = c(1101012, 1101062),
-                     breaks = c(1101012, 1101022, 1101032, 1101042, 1101052, 1101062),
-                     labels = c(seq(0, 50, 10)),
-                     expand = c(0, 0)) +
-  ggtitle('') +
-  theme(axis.title = element_blank(),
-        axis.text.x  = element_text(size = 8),
-        axis.text.y = element_text(size = 8),
-        aspect.ratio = 1,
-        plot.title = element_text(size = 12, hjust = 0.5),
-        plot.margin = unit(c(0, 0, 10, 0), "mm"))
-
-transects <- ggarrange(A2009, B2009, C2009, A2018, B2018, C2018, ncol = 3, nrow = 2)
-transects
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/gps_transects.jpg', transects, width = 190, height = 120, units = 'mm')
-# geom_point(data = subset(transects2018, block == 'A'), aes(x = X, y = Y), inherit.aes = FALSE, colour = 'blue', size = 3) +
-
-akcenter <- as.numeric(geocode('alaska, usa'))
-akmap <- ggmap(get_googlemap(center = akcenter, zoom = 4, maptype = 'satellite'))
+# create an inset to show location in AK
+akcenter <- c(-154.055, 64.603)
+akmap <- ggmap(get_googlemap(center = akcenter, zoom = 4, maptype = 'satellite', region = '.us'))
+akoutline <- map_data('world', region = 'USA') %>%
+  filter(subregion == 'Alaska')
+akmap <- akmap  + 
+  geom_polygon(data = akoutline, aes(x = long, y = lat, group = group), fill = NA, color = "black")
+akmap
 
 akmapgrob <- ggplotGrob(akmap +
   geom_point(data = cipehr, aes(x = X, y = Y), inherit.aes = FALSE, colour = '#cc3300') +
@@ -354,25 +314,104 @@ akmapgrob <- ggplotGrob(akmap +
         plot.margin = grid::unit(c(0,0,0,0),"null"),
         panel.background = element_rect(fill = NULL)))
 
+# create an inset to show the blocks
+block_figures <- list()
+for (i in 1:3) {
+  legends <- list(FALSE, FALSE, TRUE)
+  titles <- list('Block A', 'Block B', 'Block C')
+  temp <- emlimages[[i]] +
+    geom_point(data = plots_list[[i]], aes(x = x,
+                                           y = y,
+                                           color = treatment,
+                                           # shape = shape
+                                          ),
+               shape = 5,
+               size = 0.5,
+               stroke = 1) +
+    geom_point(data = cores_list[[i]], aes(x = x,
+                                           y = y,
+                                           color = treatment,
+                                           # shape = shape
+                                          ),
+               shape = 16,
+               size = 2) +
+    geom_path(data = fences_list[[i]], aes(x = x, y = y, group = fence)) +
+    geom_path(data = coords_list[[i]], aes(x = x, y = y, group = block), color = 'black', linetype = 'dashed') +
+    scale_colour_manual(breaks = c('Control', 'Air Warming', 'Soil Warming', 'Air & Soil Warming'),
+                        values = c("#0099cc", '#009900', "#990000", '#330000'),
+                        labels = c('Control', 'Air', 'Soil', 'Air & Soil'),
+                        name = '') +
+    # scale_shape_manual(values = c(16, 5),
+    #                   labels = c('Cores', 'Plots'),
+    #                   name = '') +
+    scale_x_continuous(name = '',
+                       limits = c(0, 50),
+                       expand = c(0,0)) +
+    scale_y_continuous(name = '',
+                       limits = c(0, 50),
+                       expand = c(0,0)) +
+    theme_few() +
+    ggtitle(paste(titles[i])) +
+    theme(plot.title = element_text(hjust = 0.5,
+                                    vjust = ,
+                                    size = 10),
+          text = element_text(size = 8),
+          legend.title = element_blank(),
+          legend.margin = margin(0, 0, 0, 0)
+          )
+  
+  if (legends[[i]]) {
+    block_figures[[i]] <- temp
+  } else {
+      block_figures[[i]] <- temp +
+        theme(legend.position = "none")
+  }
+  rm(temp, legends, titles)
+}
+
+block_figures
+
+
+block_figure_grobs <- map(block_figures,
+                          ~ggplotGrob(.x))
+
+# create main map with hillshade and block and tower locations
 emlmap <- ggplot(emlhillshd.df, aes(x = x, y = y, fill = layer)) +
   geom_tile() +
-  geom_point(data = cipehrblocks, aes(x = X, y = Y), inherit.aes = FALSE, colour = '#cc3300') +
-  geom_text(data = cipehrblocks, aes(x = X, y = Y, label = Block), inherit.aes = FALSE, colour = '#cc3300',  hjust = -0.2, vjust = -0.2) +
+  geom_point(data = blocks_tower, aes(x = X, y = Y, colour = Exp), inherit.aes = FALSE, size = 3) +
+  geom_text(data = blocks_tower, aes(x = X, y = Y, label = Block), colour = 'black', inherit.aes = FALSE,  hjust = -0.2, vjust = -0.2) +
   theme_few() +
   scale_fill_gradient(low = '#000000', high = '#DDDDDD',
                       guide = FALSE) +
-  scale_x_continuous(limits = c(389000, 391000),
+  scale_x_continuous(name = 'Longitude (m)',
+                     limits = c(389000, 391000),
                      expand = c(0,0)) +
-  scale_y_continuous(limits = c(7085000, 7087000),
+  scale_y_continuous(name = 'Latitude (m)',
+                     limits = c(7085000, 7087000),
+                     breaks = c(7085000, 7085500, 7086000),
                      expand = c(0,0)) +
-  theme(axis.title = element_blank(),
-        axis.text = element_text(size = 8),
+  scale_colour_manual(values = c('#cc3300', 'black'),
+                      labels = c('CiPEHR', 'Tower'),
+                      name = '')+
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         aspect.ratio = 1,
         plot.margin = unit(c(0, 10, 0, 5), "mm")) +
   coord_fixed()
-# emlmap
 
 fullmap <- emlmap +
-  annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500)
+  annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
+  annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389550, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[2]], xmin = 389550, xmax = 390100, ymin = 7086365, ymax = Inf) +
+  annotation_custom(grob = block_figure_grobs[[3]], xmin = 390100, xmax = 391000, ymin = 7086365, ymax = Inf)
 fullmap
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview.jpg', fullmap, width = 190, height = 190, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.jpg', fullmap, width = 190, height = 150, units = 'mm')
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/eml_overview_2.pdf', fullmap, width = 190, height = 150, units = 'mm', device=cairo_pdf)
+
+# # works with legend with control and soil warming only
+# fullmap <- emlmap +
+#   annotation_custom(grob = akmapgrob, xmin = 389000, ymin = 7085000, xmax = 389500, ymax = 7085500) +
+#   annotation_custom(grob = block_figure_grobs[[1]], xmin = 389000, xmax = 389535, ymin = 7086385, ymax = Inf) +
+#   annotation_custom(grob = block_figure_grobs[[2]], xmin = 389535, xmax = 390070, ymin = 7086385, ymax = Inf) +
+#   annotation_custom(grob = block_figure_grobs[[3]], xmin = 390070, xmax = 391000, ymin = 7086385, ymax = Inf)
+##############################################################################################################

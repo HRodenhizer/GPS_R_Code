@@ -606,56 +606,35 @@ mixed.model.graph <- ggplot(subpointsC, aes(x = time, y = subsidence, colour = f
   geom_point(alpha = 0.5) +
   geom_line(data = subpoints.fit, aes(x = time, y = fit, group = treatment, colour = treatment), inherit.aes = FALSE) +
   scale_color_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
-                     labels = c(paste('Control:  y = ', 
-                                      round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
-                                      'x', 
-                                      sep = ''), 
-                                paste('Air Warming:  y = ', 
-                                      round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
-                                      'x', 
-                                      sep = ''), 
-                                paste('Soil Warming:  y = ', 
-                                      round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
-                                      'x', 
-                                      sep = ''),
-                                paste('Air + Soil Warming:  y = ', 
-                                      round(model2_ci$coefs[1]*100, 2), 
-                                      'x', 
-                                      sep = '')),
+                     labels = c(bquote("Control: y"==~.(round((model2_ci$coefs[1])*100, 1))~x^a), 
+                                bquote('Air Warming: y'==~.(round((model2_ci$coefs[2])*100, 1))~x^a), 
+                                bquote('Soil Warming: y'==~.(round((model2_ci$coefs[3])*100, 1))~x^b),
+                                bquote('Air + Soil Warming: y'==~.(round(model2_ci$coefs[4]*100, 1))~x^c)),
                      name = '') +
   scale_fill_manual(values = c("#006699", '#009900', "#990000", '#330000'),
-                    labels = c(paste('Control:  y = ', 
-                                     round((model2_ci$coefs[1] + model2_ci$coefs[2])*100, 2), 
-                                     'x', 
-                                     sep = ''), 
-                               paste('Air Warming:  y = ', 
-                                     round((model2_ci$coefs[1] + model2_ci$coefs[3])*100, 2), 
-                                     'x', 
-                                     sep = ''), 
-                               paste('Soil Warming:  y = ', 
-                                     round((model2_ci$coefs[1] + model2_ci$coefs[4])*100, 2), 
-                                     'x', 
-                                     sep = ''),
-                               paste('Air + Soil Warming:  y = ', 
-                                     round(model2_ci$coefs[1]*100, 2), 
-                                     'x', 
-                                     sep = '')),
+                    labels = c(bquote("Control: y"==~.(round((model2_ci$coefs[1])*100, 1))~x^a), 
+                               bquote('Air Warming: y'==~.(round((model2_ci$coefs[2])*100, 1))~x^a), 
+                               bquote('Soil Warming: y'==~.(round((model2_ci$coefs[3])*100, 1))~x^b),
+                               bquote('Air + Soil Warming: y'==~.(round(model2_ci$coefs[4]*100, 1))~x^c)),
                      name = '') +
   scale_x_continuous(breaks = seq(0, 9),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
-  scale_y_continuous(name = '\u0394 Elevation',
-                     breaks = seq(-0.9, 0.1, .1),
-                     labels = c('', -80, '', -60, '', -40, '', -20, '', 0, '')) +
+  scale_y_continuous(name = '\u0394 Elevation (cm)',
+                     limits = c(-1, 0.1),
+                     breaks = seq(-1, 0.1, .1),
+                     labels = c(-100, '', -80, '', -60, '', -40, '', -20, '', 0, '')) +
   theme_few() +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0, 0),
         legend.position=c(0.01, 0.01),
         legend.title = element_blank(),
+        legend.margin = margin(0, 0, 0, 0),
         plot.title = element_text(hjust = 0.5)) +
   coord_fixed(ratio = 10) +
-  annotate('text', x = 0.7, y = -0.7, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
+  annotate('text', x = 0.4, y = -0.672, label = paste0("~R[c]^2==", round(as.numeric(model2_r2[2]), 2)), parse = TRUE, size = 3)
 
 
 mixed.model.graph
@@ -750,11 +729,11 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
   scale_color_manual(name = 'Permafrost Thaw',
                      breaks = c('Raw', 'Subsidence Adjusted'),
                      values = c("#666666", "#000000"),
-                     labels = c('ALT', 'SALT')) +
+                     labels = c('ALT', 'Thaw Penetration')) +
   scale_fill_manual(name = 'Thawed C',
                     breaks = c('Raw', 'Subsidence Adjusted'),
-                     values = c("#666666", "#000000"),
-                     labels = c('ALT', 'SALT')) +
+                    values = c("#666666", "#000000"),
+                    labels = c('ALT', 'Thaw Penetration')) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      name = '') +
   scale_y_continuous(name = 'Permafrost Thaw (cm)',
@@ -769,25 +748,27 @@ gtest2 <- ggplot(ALTsubgraph2, aes(x = year, y = mean.ALT, color = sub.correctio
   theme_few() +
   guides(color = guide_legend(order = 2),
          fill = guide_legend(order = 1)) +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         strip.text.x = element_text(color = 'black'),
         legend.title = element_blank(),
         axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
         legend.justification=c(0,0),
         legend.position=c(0.01,0.01),
-        legend.box = 'horizontal',
+        legend.margin = margin(0, 0, 0, 0),
+        legend.direction = 'horizontal',
         plot.title = element_text(hjust = 0.5),
         panel.spacing = unit(1, "lines"))
 gtest2
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 6, width = 9.5)
-# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 6, width = 9.5)
+# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.jpg', plot = gtest2, height = 150, width = 190, units = 'mm')
+# ggsave("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur\ Lab/GPS/Figures/Subsidence_Permafrost_Thaw_2018_summary.pdf", plot = gtest2, height = 150, width = 190, units = 'mm')
 
 
 # soil profile graphs
 # colors needed
 names <- c('Unsaturated Active Layer', 'Saturated Active Layer', 'Permafrost')
-color <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
+values <- c('Permafrost' = '#666666', 'Unsaturated Active Layer' = '#996633', 'Saturated Active Layer' = '#006699')
 
 # Cross section of soil for control and warming
 treat_labels <- c(Control = 'Control',
@@ -805,8 +786,8 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
               linetype = 1,
               colour = 'black') +
-  geom_line(aes(y = mean.ALT),
-            linetype = 3,
+  geom_line(aes(y = mean.ALT,
+                linetype = 'ALT'),
             color = 'black',
             size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
@@ -816,8 +797,10 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   geom_errorbar(aes(ymin = mean.subsidence + mean.WTD - se.WTD, ymax = mean.subsidence + mean.WTD + se.WTD), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.ALT - se.ALT, ymax = mean.ALT + se.ALT), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.ALT.corrected - se.ALT.corrected, ymax = mean.ALT.corrected + se.ALT.corrected), width = 0.2, colour = 'grey50') +
+  scale_linetype_manual(breaks = c('ALT'),
+                        values = c(3)) +
   scale_fill_manual(name = '',
-                    values = color,
+                    values = values,
                     breaks = names) +
   scale_x_continuous(breaks = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
                      labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018),
@@ -830,14 +813,21 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
                      expand = c(0,0),
                      name = 'Depth (cm)') +
   theme_few() +
-  theme(text = element_text(size = 8),
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
         strip.text.x = element_text(color = 'black'),
         axis.text.x  = element_text(angle = 60, vjust = 1.3, hjust = 1.5),
-        legend.justification=c(0,0),
-        legend.position=c(0,0),
-        legend.background = element_rect(color="grey30", size=.5),
+        legend.justification = c(0,0),
+        legend.position = c(0.002,0),
         legend.title = element_blank(),
-        panel.spacing = unit(1, "lines"))
+        legend.margin = margin(unit(c(-5, 0, -10, 0), unit = 'mm')),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color="grey30", size=.5, fill = 'white'),
+        legend.box.margin = margin(unit(c(5, 5, 15, 5), units = 'mm')),
+        panel.spacing = unit(1, "lines")) + 
+  guides(linetype = guide_legend(order = 1),
+         fill = guide_legend(order = 2))
+  
 
 g4
 

@@ -210,8 +210,10 @@ subsidence_map <- ggplot(filter(sub_df, year == 2019), aes(x=long.norm, y=lat.no
   # geom_text(data = avg_sub, aes(x = 11, y = 37.5, label = paste('Avg Sub = ', round(avg.sub, 2), 'm')), inherit.aes = FALSE) +
   facet_grid(. ~ block) +
   theme_few() +
-  scale_fill_viridis(expression(Delta*" Elevation (m)"),
-                     limits = c(-1.0, 0.2),
+  scale_fill_viridis(expression(Delta*" Elevation (cm)"),
+                     limits = c(-1.0, 0.5),
+                     breaks = c(-1.0, -0.5, 0, 0.5),
+                     labels = c(-100, -50, 0, 50),
                      na.value = 'transparent') +
   scale_color_manual('Snow Fence',
                      values = 'black') +
