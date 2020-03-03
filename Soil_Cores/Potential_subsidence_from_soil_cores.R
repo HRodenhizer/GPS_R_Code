@@ -520,7 +520,7 @@ ice.loss <- ggplot(ice_loss_fit, aes(x = cumulative.ice.height, y = sub, colour 
   scale_x_continuous(name = "Total Ice Height (cm)",
                      breaks = c(0.1, 0.2, 0.3, 0.4, 0.5),
                      labels = c(10, 20, 30, 40, 50)) +
-  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (cm)"),
+  scale_y_continuous(name = expression(Delta*" Elevation (cm)"),
                      breaks = c(-0.6, -0.4, -0.2, 0),
                      labels = c(-60, -40, -20, 0)) +
   annotate(geom = 'text', 
@@ -564,7 +564,7 @@ excess.ice.loss <- ggplot(ice_loss_2, aes(x = cumulative.excess.ice.height, y = 
   scale_x_continuous(name = "Excess Ice Height (cm)",
                      breaks = c(0.05, 0.1, 0.15, 0.2, 0.25),
                      labels = c(5, 10, 15, 20, 25)) +
-  scale_y_continuous(name = expression("Measured "*Delta*" Elevation (cm)"),
+  scale_y_continuous(name = expression(Delta*" Elevation (cm)"),
                      breaks = c(-0.6, -0.4, -0.2, 0),
                      labels = c(-60, -40, -20, 0)) +
   scale_colour_manual(values = c("#006699", "#990000"),
