@@ -127,6 +127,10 @@ for (i in 1:length(Elevation_fill)) {
       
   rm(i, temp_fences, temp_sub)
 }
+
+# writeRaster(sub[[1]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/ASubStack2009-2019.tif')
+# writeRaster(sub[[2]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/BSubStack2009-2019.tif')
+# writeRaster(sub[[3]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/CSubStack2009-2019.tif')
 #############################################################################################################
 
 ### Calculate Latest Subsidence (DryPEHR) ###################################################################
@@ -178,6 +182,10 @@ for (i in 1:length(Elevation_fill_drypehr_clipped)) {
   
   rm(i, temp_fences, temp_sub)
 }
+
+# writeRaster(sub_drypehr[[1]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/ASubStack2009-2019_drypehr.tif')
+# writeRaster(sub_drypehr[[2]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/BSubStack2009-2019_drypehr.tif')
+# writeRaster(sub_drypehr[[3]], 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/CSubStack2009-2019_drypehr.tif')
 #############################################################################################################
 
 ### Graph subsidence (CiPEHR only) ##########################################################################
