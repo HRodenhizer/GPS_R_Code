@@ -269,6 +269,8 @@ pore_ice_height <- ice_loss %>%
 
 mean(pore_ice_height$bulk.density, na.rm = TRUE)
 mean(pore_ice_height$bulk.density.2, na.rm = TRUE)
+ggplot(pore_ice_height, aes(x = moisture, y = excess.ice.volume)) +
+  geom_point()
 
 # write.csv(ice_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
 # write.csv(pore_ice_height, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/excess_ice_height.csv', row.names = FALSE)
@@ -284,23 +286,23 @@ mean.sub <- pore_ice_height %>%
 # this results in even less excess ice than the calcualtion with the estimate of 50% pore space
 # water holding capacity is known to be significantly less than the pore space, so this isn't a surprise
 # FINAL CONCLUSION: DON'T USE THIS!
-whc2 <- whc %>%
-  select(fence, depth, whc = `100% WHC per g dry soil`) %>% # whc in g water per g soil at 100% whc
-  separate(depth, into = c('depth0', 'depth1'), remove = FALSE) %>%
-  filter(depth1 > min(alt$mean.ALT, na.rm = TRUE)) %>%
-  mutate(count = 1) %>%
-  group_by(depth0, depth1) %>%
-  summarise(whc = mean(whc),
-            count = sum(count)) %>%
-  ungroup() %>%
-  summarise(mean.whc = sum(whc*count)/sum(count))
-
-whc_pore_ice_height <- pore_ice_height %>%
-  mutate(soil.mass.measured = soil.stock*core.area*10^-1, # g
-         pore.ice.volume.whc = as.numeric(whc2)*soil.mass.measured/10^6, # m^3
-         excess.ice.volume.whc = ifelse(pore.ice.volume.whc < ice.volume,
-                                        ice.volume - pore.ice.volume.whc,
-                                        0)) # m^3
+# whc2 <- whc %>%
+#   select(fence, depth, whc = `100% WHC per g dry soil`) %>% # whc in g water per g soil at 100% whc
+#   separate(depth, into = c('depth0', 'depth1'), remove = FALSE) %>%
+#   filter(depth1 > min(alt$mean.ALT, na.rm = TRUE)) %>%
+#   mutate(count = 1) %>%
+#   group_by(depth0, depth1) %>%
+#   summarise(whc = mean(whc),
+#             count = sum(count)) %>%
+#   ungroup() %>%
+#   summarise(mean.whc = sum(whc*count)/sum(count))
+# 
+# whc_pore_ice_height <- pore_ice_height %>%
+#   mutate(soil.mass.measured = soil.stock*core.area*10^-1, # g
+#          pore.ice.volume.whc = as.numeric(whc2)*soil.mass.measured/10^6, # m^3
+#          excess.ice.volume.whc = ifelse(pore.ice.volume.whc < ice.volume,
+#                                         ice.volume - pore.ice.volume.whc,
+#                                         0)) # m^3
 ####################################################################################################################################
 
 ######################## DEFINE FUNCTIONS TO EXTRACT AND GRAPH CI #########################
