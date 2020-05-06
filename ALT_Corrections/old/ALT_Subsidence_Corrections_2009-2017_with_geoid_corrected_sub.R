@@ -429,10 +429,10 @@ ALTsub <- subfill %>%
   rbind.data.frame(DryPEHRa) %>%
   right_join(ALTdata2, by = c("year", "exp", "block", "fence", "plot", "treatment")) %>%
   mutate(ALT = ALT*-1,
-         ALT.corrected = ifelse(subsidence < 0,
+         TP = ifelse(subsidence < 0,
                                 ALT+subsidence*100,
                                 ALT)) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, ALT, ALT.corrected) %>%
+  dplyr::select(year, exp, block, fence, plot, treatment, reg.intercept, reg.slope, reg.r2, reg.pvalue, subsidence, ALT, TP) %>%
   arrange(year, exp, block, fence, plot)
 
 # Write file
@@ -443,7 +443,7 @@ ALTsub <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GP
 subpoints <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/Subsidence_2009_2017_geoid_corrected.csv')
 
 ALTsubgraph <- ALTsub %>%
-  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
+  gather(key = Measurement_Type, value = ALT, ALT:TP) %>%
   arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
   filter(plot != 'a') %>%
   mutate(plot = factor(plot, levels = c('1', '2', '3', '4', 'b', '5', '6', '7', '8', 'c', 'd')))

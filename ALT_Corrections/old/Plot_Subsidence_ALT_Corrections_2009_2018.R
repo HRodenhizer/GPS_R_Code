@@ -245,8 +245,8 @@ ALTdata2 <- ALTdata %>%
 ALTsub <- Sub_extract %>%
   left_join(ALTdata2, by = c("year", "exp", "block", "fence", "plot", "treatment")) %>%
   mutate(ALT = ALT*-1,
-         ALT.corrected = ALT+subsidence*100) %>%
-  dplyr::select(year, exp, block, fence, plot, treatment, subsidence, ALT, ALT.corrected) %>%
+         TP = ALT+subsidence*100) %>% # thaw penetration
+  dplyr::select(year, exp, block, fence, plot, treatment, subsidence, ALT, TP) %>%
   arrange(year, exp, block, fence, plot)
 
 # Write file
@@ -296,13 +296,13 @@ subpoints2 <- subpoints %>%
                             'Control',
                             'Warming'))
 
-### Create a data frame to graph corrected and uncorrected ALT values on top of each other by plot
+### Create a data frame to graph ALT and thaw penetration values on top of each other by plot
 ALTsubgraph <- ALTsub %>%
-  gather(key = Measurement_Type, value = ALT, ALT:ALT.corrected) %>%
+  gather(key = Measurement_Type, value = ALT, ALT:TP) %>%
   arrange(desc(Measurement_Type), year, exp, block, fence, plot) %>%
   mutate(plot = factor(plot, levels = c('1', '2', '3', '4','a', 'b', '5', '6', '7', '8', 'c', 'd')))
 
-### Create a data frame with WTD, corrected, and uncorrected ALT for each fence and treatment per year
+### Create a data frame with WTD, ALT, and thaw penetration for each fence and treatment per year
 # join WTD and sub by fence and treatment
 WTD_fence <- WTD %>%
   group_by(year, block, fence, treatment) %>%
@@ -318,12 +318,12 @@ ALTsub_fence <- ALTsub %>%
          subsidence = subsidence*100) %>%
   group_by(year, block, fence, treatment) %>%
   summarise(mean.subsidence = mean(subsidence, na.rm = TRUE),
-            mean.ALT = mean(ALT.corrected, na.rm = TRUE),
+            mean.TP = mean(TP, na.rm = TRUE),
             se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
-            se.ALT = sd(ALT.corrected, na.rm = TRUE)/sqrt(n())) %>%
+            se.TP = sd(TP, na.rm = TRUE)/sqrt(n())) %>%
   full_join(WTD_fence, by = c('year', 'block', 'fence', 'treatment'))
 
-### Create a summarized data frame for graphing differences in corrected and uncorrected ALT between control and warming
+### Create a summarized data frame for graphing differences in ALT and TP between control and warming
 ALTsubgraph2 <- ALTsubgraph %>%
   mutate(treatment = ifelse(treatment == 'Air Warming' | treatment == 'Control' | treatment == 'Drying',
                             'Control',
@@ -335,8 +335,8 @@ ALTsubgraph2 <- ALTsubgraph %>%
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
   arrange(year, treatment, desc(Measurement_Type)) %>%
   mutate(sub.correction = ifelse(Measurement_Type == 'ALT',
-                                 'Raw',
-                                 'Subsidence Adjusted'))
+                                 'ALT',
+                                 'Thaw Penetration'))
 
 ### Create a data frame for graphing soil profiles with WTD
 # Create a WTD data frame with averages for each treatment per year
@@ -353,12 +353,12 @@ ALTsub.summary <- ALTsub %>%
   group_by(year, treatment) %>%
   summarise(mean.subsidence = mean(subsidence, na.rm = TRUE)*100,
             se.subsidence = sd(subsidence, na.rm = TRUE)/sqrt(n()),
-            mean.ALT.corrected = mean(ALT.corrected, na.rm = TRUE),
-            se.ALT.corrected = sd(ALT.corrected, na.rm = TRUE)/sqrt(n()),
+            mean.TP = mean(TP, na.rm = TRUE),
+            se.TP = sd(TP, na.rm = TRUE)/sqrt(n()),
             mean.ALT = mean(ALT, na.rm = TRUE),
             se.ALT = sd(ALT, na.rm = TRUE)/sqrt(n())) %>%
-  mutate(percent.change = (mean.ALT.corrected/mean.ALT - 1)*100,
-         se.percent.change = sqrt( (se.ALT.corrected/mean.ALT.corrected)^2 + (se.ALT/mean.ALT)^2 )*100) %>%
+  mutate(percent.change = (mean.TP/mean.ALT - 1)*100,
+         se.percent.change = sqrt( (se.TP/mean.TP)^2 + (se.ALT/mean.ALT)^2 )*100) %>%
   full_join(WTD2, by = c('year', 'treatment'))
 
 ### Create a data frame for graphing the carbon change data  with ALT data
@@ -367,8 +367,8 @@ avail_c <- thawedc %>%
   separate(type, into = c('measurement', 'sub.correction')) %>%
   spread(key = measurement, value = avail.c) %>%
   mutate(sub.correction = ifelse(sub.correction == 'raw',
-                                 'Raw',
-                                 'Subsidence Adjusted'))
+                                 'ALT',
+                                 'Thaw Penetration'))
 
 diff <- thawedc %>%
   mutate(diff = totC.ratio - totC.raw,
@@ -777,13 +777,13 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
   facet_grid(. ~ treatment, labeller = labeller(treatment = treat_labels)) +
   geom_ribbon(aes(ymin = mean.subsidence, ymax = 0),
               fill = 'white') +
-  geom_ribbon(aes(ymin = -160, ymax = mean.ALT.corrected, fill = 'Permafrost'),
+  geom_ribbon(aes(ymin = -160, ymax = mean.TP, fill = 'Permafrost'),
               linetype = 1,
               colour = 'black') +
   geom_ribbon(aes(ymin = mean.ALT, ymax = mean.subsidence, fill = 'Unsaturated Active Layer'),
               linetype = 1,
               colour = 'black') +
-  geom_ribbon(aes(ymin = mean.ALT.corrected, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
+  geom_ribbon(aes(ymin = mean.TP, ymax = mean.subsidence + mean.WTD, fill = 'Saturated Active Layer'),
               linetype = 1,
               colour = 'black') +
   geom_line(aes(y = mean.ALT,
@@ -792,11 +792,11 @@ g4 <- ggplot(ALTsub.summary, aes(x = year)) +
             size = 1) +
   geom_hline(yintercept = 0, linetype = 2) +
   geom_line(aes(y = mean.subsidence), size = 1)+
-  geom_line(aes(y = mean.ALT.corrected), size = 1) +
+  geom_line(aes(y = mean.TP), size = 1) +
   geom_errorbar(aes(ymin = mean.subsidence - se.subsidence, ymax = mean.subsidence + se.subsidence), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.subsidence + mean.WTD - se.WTD, ymax = mean.subsidence + mean.WTD + se.WTD), width = 0.2, colour = 'grey50') +
   geom_errorbar(aes(ymin = mean.ALT - se.ALT, ymax = mean.ALT + se.ALT), width = 0.2, colour = 'grey50') +
-  geom_errorbar(aes(ymin = mean.ALT.corrected - se.ALT.corrected, ymax = mean.ALT.corrected + se.ALT.corrected), width = 0.2, colour = 'grey50') +
+  geom_errorbar(aes(ymin = mean.TP - se.TP, ymax = mean.TP + se.TP), width = 0.2, colour = 'grey50') +
   scale_linetype_manual(breaks = c('ALT'),
                         values = c(3)) +
   scale_fill_manual(name = '',
@@ -866,7 +866,7 @@ g5
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.jpg")
 # ggsave(plot = g5, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Soil_Profile_Ratio_Corrected_2018_by_fence.pdf")
 
-g6 <- ggplot(ALTsub.summary, aes(x = mean.ALT.corrected*-1, y = mean.subsidence, colour = treatment)) +
+g6 <- ggplot(ALTsub.summary, aes(x = mean.TP*-1, y = mean.subsidence, colour = treatment)) +
   geom_point() +
   scale_color_manual(values = c("#006699", "#990000"),
                      labels = c('Control', 'Warming'),
