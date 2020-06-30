@@ -13,6 +13,7 @@ library(sp)
 library(sf)
 library(ggthemes)
 library(viridis)
+library(mapview)
 ############################################################################################################
 
 ### Load data ##############################################################################################
@@ -211,6 +212,14 @@ subsidence_map_all_years <- ggplot(sub_df, aes(x=long.norm, y=lat.norm, fill=sub
   ggtitle('10 Years of Subsidence at CiPEHR')
 
 subsidence_map_all_years
+
+# plot 2014-2018 sub to compare with GLiHT sub that doesn't seem right
+sub_a_14_18 <- Elevation_fill[[1]][[10]] - Elevation_fill[[1]][[6]]
+sub_b_14_18 <- Elevation_fill[[2]][[10]] - Elevation_fill[[2]][[6]]
+sub_c_14_18 <- Elevation_fill[[3]][[10]] - Elevation_fill[[3]][[6]]
+mapView(sub_a_14_18)
+mapView(sub_b_14_18)
+mapView(sub_c_14_18)
 
 subsidence_map <- ggplot(filter(sub_df, year == 2019), aes(x=long.norm, y=lat.norm, fill=subsidence)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
