@@ -19,11 +19,17 @@ library(ggthemes)
 Points2019 <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2019_Aug_SPCSAK4.shp")
 Points2020 <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2020_SPCSAK4.shp")
 A2017raster <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Uncorrected_kriged_elevation/A2017K.tif')
+crs(A2017raster) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 B2017raster <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Uncorrected_kriged_elevation/B2017K.tif')
+crs(B2017raster) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 C2017raster <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Uncorrected_kriged_elevation/C2017K.tif')
+crs(C2017raster) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 A2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance/A2017Var.tif')
+crs(A2017var) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 B2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance/B2017Var.tif')
+crs(B2017var) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 C2017var <- raster('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/Variance/C2017Var.tif')
+crs(C2017var) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 ########################################################################################
 
 # run this first time only
@@ -178,12 +184,14 @@ points2 <- points %>%
                                                                                       'grid',
                                                                                       NA))))))))),
                        levels = c('base', 'check', 'grid', 'plot', 'waterwell', 'fdbm', 'gradient', 'thermokarst'))) %>%
-  arrange(type, numeric_names, Name)
-# st_write(points, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2020_SPCSAK4.shp")
+  arrange(type, numeric_names, Name) %>%
+  st_zm()
+# st_write(points2, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/All_Points_2020_SPCSAK4.shp")
 
 ##############################Select data by block##############################
-#2019
+# 2020
 Grids2020 <- Points2020 %>%
+  rename(Elevation = Elevatn, Northing = Northng) %>%
   mutate(Name = as.character(Name)) %>%
   mutate(Name = as.numeric(Name)) %>%
   filter(Name != is.na(Name) & Name < 13000) %>%
@@ -226,7 +234,7 @@ plot(a2020.vgm, a2020.fit)
 A2020grid <- A2017raster %>%
   as('SpatialPixelsDataFrame')
 
-a2020k <-  krige(Elevation~1, a2020sp, A2020grid, a2020.fit)
+a2020k <-  krige(Elevation~1, a2020sp, newdata = A2020grid, model = a2020.fit)
 
 ggplot(a2020) +
   geom_tile(data = as.data.frame(a2020k), aes(x,y, fill = var1.pred), inherit.aes = FALSE) +
