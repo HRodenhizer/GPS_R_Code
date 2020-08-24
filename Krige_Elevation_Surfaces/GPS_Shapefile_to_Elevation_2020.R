@@ -34,7 +34,7 @@ crs(C2017var) <- "+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0
 
 # run this first time only
 # transform to spcs ak 4 and adjust elevation manually because of export from Trimble Business Center in WGS84
-points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2020 GPS/processing.shp/Points_2020.shp") %>%
+points <- st_read("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/2020 GPS/processing/2020_gps_processing/2020_gps_processing.shp/Points.shp") %>%
   st_transform(st_crs(Points2019)) %>%
   mutate(Name = as.character(Name))
 
