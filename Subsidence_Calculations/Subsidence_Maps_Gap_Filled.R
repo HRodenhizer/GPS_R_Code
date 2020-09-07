@@ -191,6 +191,10 @@ for (i in 1:length(Elevation_fill_drypehr_clipped)) {
 #############################################################################################################
 
 ### Graph subsidence (CiPEHR only) ##########################################################################
+sub <- list(brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/ASubStack2009-2020.tif'),
+            brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/BSubStack2009-2020.tif'),
+            brick('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Subsidence_Clipped/ALT_Sub_Ratio_Corrected/subsidence_stacks/CSubStack2009-2020.tif'))
+
 subsidence_map_all_years <- ggplot(sub_df, aes(x=long.norm, y=lat.norm, fill=subsidence)) +
   geom_tile(aes(height = 2, width = 2)) + # have to set height and width due to bug. See note/link above.
   geom_path(data = Fences_norm, aes(x = long.norm, y = lat.norm, group = group, color = dummy), inherit.aes = FALSE) +
@@ -249,4 +253,104 @@ subsidence_map
 
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2020.jpg', width = 14, height = 5)
 # ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/Subsidence_Ratio_Corrected_2020.pdf', width = 14, height = 5)
+
+# extract subsidence from plots for plot/treatment level subsidence
+# 2017 shapefile for location of plots
+plotcoords <- read_sf("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/plot_coordinates_from_2017.shp") %>%
+  mutate(block = ifelse(fence == 1 | fence == 2,
+                        1,
+                        ifelse(fence == 3 | fence == 4,
+                               2,
+                               3)))
+
+plotcoords_list <- list(filter(plotcoords, block == 1),
+                        filter(plotcoords, block == 2),
+                        filter(plotcoords, block == 3))
+
+sub_df <- map2_dfr(sub,
+         plotcoords_list,
+         ~ raster::extract(.x, .y, df = TRUE) %>%
+           rename(sub.2009 = 2,
+                  sub.2010 = 3,
+                  sub.2011 = 4,
+                  sub.2012 = 5,
+                  sub.2013 = 6,
+                  sub.2014 = 7,
+                  sub.2015 = 8,
+                  sub.2016 = 9,
+                  sub.2017 = 10,
+                  sub.2018 = 11,
+                  sub.2019 = 12,
+                  sub.2020 = 13) %>%
+           cbind.data.frame(select(.y, block, fence, plot, exp)) %>%
+           pivot_longer(sub.2009:sub.2020, names_to = 'year', values_to = 'sub') %>%
+           mutate(year = as.numeric(str_sub(year, 5))))
+
+sub_df_cipehr <- sub_df %>%
+  filter(exp == 'CiPEHR') %>%
+  mutate(plot = as.numeric(plot),
+         treatment = factor(ifelse(plot == 2 | plot == 4,
+                            'Control',
+                            ifelse(plot == 1 | plot == 3,
+                                   'Air Warming',
+                                   ifelse(plot == 6 | plot == 8,
+                                          'Soil Warming',
+                                          'Air + Soil Warming'))),
+                            levels = c('Control', 'Air Warming', 'Soil Warming', 'Air + Soil Warming')))
+
+# plot sub through time by plot
+g1 <- ggplot(sub_df_cipehr, aes(x = year, y = sub)) +
+  geom_point(aes(color = treatment)) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(fence~plot) +
+  scale_x_continuous(breaks = c(2010, 2012, 2014, 2016, 2018, 2020),
+                     name = '') +
+  scale_y_continuous(name = 'Subsidence (m)') +
+  ggtitle('Modeled Subsidence by Plot') +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5, size = 12),
+        axis.title.y = element_text(size = 16),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        title = element_text(size = 20),
+        plot.title = element_text(hjust = 0.5),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12)) +
+  scale_color_manual(name = 'Treatment',
+                     values = c("#0099cc", '#009900', "#990000", '#330000'),
+                     labels = c("Control", 'Air Warming', 'Soil Warming','Air + Soil Warming'))
+
+g1
+
+# plot sub through time by treatment
+mixed.model.graph <- ggplot(sub_df_cipehr, aes(x = year, y = sub, colour = treatment, group = treatment)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = 'lm', aes(fill = treatment)) +
+  scale_color_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
+                     labels = c("Control", 'Air Warming', 'Soil Warming','Air + Soil Warming'),
+                     name = '') +
+  scale_fill_manual(values = c("#0099cc", '#009900', "#990000", '#330000'),
+                    labels = c("Control", 'Air Warming', 'Soil Warming','Air + Soil Warming'),
+                    name = '') +
+  scale_x_continuous(breaks = seq(0, 11),
+                     labels = c(2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020),
+                     name = '') +
+  scale_y_continuous(name = '\u0394 Elevation (cm)',
+                     limits = c(-1, 0.1),
+                     breaks = seq(-1, 0.1, .1),
+                     labels = c(-100, '', -80, '', -60, '', -40, '', -20, '', 0, '')) +
+  theme_few() +
+  theme(text = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        axis.text.x  = element_text(angle = 60, vjust = 1.5, hjust = 1.5),
+        legend.justification=c(0, 0),
+        legend.position=c(0.01, 0.01),
+        legend.title = element_blank(),
+        legend.margin = margin(0, 0, 0, 0),
+        plot.title = element_text(hjust = 0.5)) +
+  coord_fixed(ratio = 10)
+
+mixed.model.graph
+
 ############################################################################################################
