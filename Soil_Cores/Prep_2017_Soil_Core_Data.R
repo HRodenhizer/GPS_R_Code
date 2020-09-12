@@ -196,23 +196,24 @@ uneven_layers <- soil_17_v2 %>%
          new.delta13C = NA,
          new.delta15N = NA)
 
+# standardize layer depths
 for (i in 1:nrow(uneven_layers)) {
   
   current_fence <- uneven_layers$fence[i]
   current_plot <- uneven_layers$plot[i]
-  current_depth0 <- uneven_layers$depth0[i]
-  current_depth1 <- uneven_layers$depth1[i]
-  idx <- which.min(abs(depth0_values-current_depth0))
-  new_depth0 <- depth0_values[idx]
-  new_depth1 <- depth1_values[idx]
+  current_depth0 <- uneven_layers$depth0[i] # actual depth of top of layer (i.e. a layer that doesn't line up with the standardized depths)
+  current_depth1 <- uneven_layers$depth1[i] # actual depth of bottom of layer
+  idx <- which.min(abs(depth0_values-current_depth0)) # depth0_values is a vector of the desired depths - this code finds the standardized depth which is closest to the current depth
+  new_depth0 <- depth0_values[idx] # standardized depth which the output will be aligned to (top of layer)
+  new_depth1 <- depth1_values[idx] # standardized depth which the output will be aligned to (bottom of layer)
   
-  if (i == 1 | i == nrow(uneven_layers)) {
+  if (i == 1 | i == nrow(uneven_layers)) { # at the beginning or end of the dataset, we cannot do any calculations to adjust values, so we just adjust the depth to reflect the depth we want
     
     uneven_layers$new.depth0[i] <- new_depth0
     uneven_layers$new.depth1[i] <- new_depth1
     uneven_layers$new.depth.cat[i] <- paste(new_depth0, new_depth1, sep = '-')
     
-  } else {
+  } else { # adjust the depth values and then go through an if statement to figure out how to deal with the averaging of values
     
     uneven_layers$new.depth0[i] <- new_depth0
     uneven_layers$new.depth1[i] <- new_depth1
@@ -223,7 +224,7 @@ for (i in 1:nrow(uneven_layers)) {
         current_fence == uneven_layers$fence[i-1] &
         current_plot == uneven_layers$plot[i-1] &
         current_fence == uneven_layers$fence[i+1] &
-        current_plot == uneven_layers$plot[i+1]) { # any rows in which depth0 is greater than and depth1 is less than the normalized depth and the rows on either side are of the same core
+        current_plot == uneven_layers$plot[i+1]) { # any rows in which depth0 is greater than and depth1 is less than the standardized depth and the rows on either side are of the same core
       
       # uneven_layers$new.moisture[i] <- (uneven_layers$moisture[i-1]*uneven_layers$stock[i-1]*(current_depth0-new_depth0) + 
       #   uneven_layers$moisture[i]*uneven_layers$stock[i]*(current_depth1 - current_depth0) +
@@ -233,7 +234,7 @@ for (i in 1:nrow(uneven_layers)) {
       
     } else if (current_depth0 > depth0_values[idx] &
                current_fence == uneven_layers$fence[i-1] &
-               current_plot == uneven_layers$plot[i-1]) {
+               current_plot == uneven_layers$plot[i-1]) { # if the top of the core is lower than it should be and the previous row of data is in the same core
       
       # stock
       uneven_layers$new.stock[i] <- (uneven_layers$stock[i-1]*(current_depth0 - new_depth0) +
@@ -277,7 +278,7 @@ for (i in 1:nrow(uneven_layers)) {
       
     } else if (current_depth1 < depth1_values[idx] &
                current_fence == uneven_layers$fence[i+1] &
-               current_plot == uneven_layers$plot[i+1]) {
+               current_plot == uneven_layers$plot[i+1]) { # if the bottom of the core is shallower than it should be and the following row of data is from the same core
       
       # stock
       uneven_layers$new.stock[i] <- (uneven_layers$stock[i]*(current_depth1 - new_depth0) +
@@ -355,6 +356,7 @@ uneven_layers_v2 <- uneven_layers %>%
          stock = new.stock, moisture = new.moisture, bulk.density = new.bulk.density, ash = new.ash, C = new.C, 
          N = new.N, delta13C = new.delta13C, delta15N = new.delta15N)
 
+# create a template with the proper entries to fill in with the data
 soil_17_template <- expand.grid(fence = seq(1, 6, 1),
                                 plot = seq(1, 8, 1),
                                 depth.cat = c('0-5', '5-15', '15-25', '25-35', '35-45', '45-55', '55-65', '65-75', '75-85', '85-95', '95-100')) %>%
@@ -374,7 +376,7 @@ soil_17_template <- expand.grid(fence = seq(1, 6, 1),
   select(year, block, fence, plot, treatment, depth.cat, depth0, depth1) %>%
   arrange(block, fence, plot, depth0)
 
-# join soil_17_v2 with split layers and uneven layers and then insert into the template
+# join soil_17_v2 with split layers (line 155) and uneven layers (line 199) and then insert into the template
 soil_17_final <- soil_17_v2 %>%
   rbind.data.frame(split_layers, uneven_layers_v2) %>%
   right_join(soil_17_template, by = c('year', 'block', 'fence', 'plot', 'treatment', 'depth.cat', 'depth0', 'depth1')) %>%
