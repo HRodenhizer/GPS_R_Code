@@ -18,7 +18,7 @@ library(R.utils)
 ####################################################################################################################################
 
 ### load data ######################################################################################################################
-soil <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv')
+soil <- read.csv('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/Soil_09_17.csv')
 ### units of soil_09_17 ###
 # depth.cat, depth0, depth1 (cm)
 # moisture, ash, C, N (g/kg)
@@ -29,7 +29,7 @@ soil <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/
 ###
 
 # read in water well location data and subsidence data for 2013
-water_wells <- read_sf('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
+water_wells <- read_sf('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/All_Points/Site_Summary_Shapefiles/water_wells.shp') %>%
   filter(!(str_detect(Name, pattern = '^ww.*n$') | str_detect(Name, pattern = '^ww.*s$'))) %>%
   dplyr::select(Name, Easting, Northing) %>%
   mutate(year = ifelse(str_detect(Name, pattern = '^ww.*5$'),
@@ -50,10 +50,10 @@ water_wells <- water_wells %>%
   mutate(Easting = coords[,1],
          Northing = coords[,2])
 # Load ALT
-ALTsub <- read.table('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', 
+ALTsub <- read.table('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Thaw_Depth_Subsidence_Correction/ALT_Sub_Ratio_Corrected/ALT_Subsidence_Corrected_2009_2018.txt', 
                      header = TRUE, sep = '/t')
 # find elevation files in directory
-filenames <- list.files("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
+filenames <- list.files("/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Kriged_Surfaces/Elevation_Variance/ALT_Sub_Ratio_Corrected/Elevation_Stacks", 
                         full.names = TRUE, pattern = '^.*.tif$')
 # make a list of elevation raster stacks for each block
 Elevation <- list(brick(filenames[1]), brick(filenames[4]), brick(filenames[7]))
@@ -217,7 +217,7 @@ moisture_loss <- moisture %>%
          cumulative.moisture.height = cumsum(moisture.height)) %>%
   arrange(block, fence, treatment, alt.year)
 
-# write.csv(moisture_loss, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
+# write.csv(moisture_loss, '/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Soil_Cores/ice_height.csv', row.names = FALSE)
 
 ggplot(moisture_loss, aes(x = height/100, y = moisture.height)) +
   geom_point()
@@ -365,14 +365,14 @@ summary(model)
 r.squared <- r.squaredGLMM(model)
 
 # save model
-# saveRDS(model, "C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
+# saveRDS(model, "/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
 
-model <- readRDS("C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
+model <- readRDS("/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_model.rds")
 
 # calculate confidence intervals to look at fixed effects
 model_ci <- extract_ci(model)
-# write.csv(model_ci, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv', row.names = FALSE)
-model_ci <- read.csv('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv')
+# write.csv(model_ci, '/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv', row.names = FALSE)
+model_ci <- read.csv('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/ice_loss_Coefficients_Mixed_Effects.csv')
 
 predInt <- predictInterval(model, newdata = moisture_loss_2, n.sims = 1000,
                            returnSims = TRUE, level = 0.95)
@@ -380,7 +380,7 @@ predInt <- predictInterval(model, newdata = moisture_loss_2, n.sims = 1000,
 moisture_loss_fit <- moisture_loss_2 %>%
   cbind.data.frame(predInt) %>%
   dplyr::select(-geometry)
-# write.csv(moisture_loss_fit, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
+# write.csv(moisture_loss_fit, '/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Subsidence_Analyses/2018/Ice_Loss_Fit_2018.csv', row.names = FALSE)
 
 # make confidence interval data frame for graphing
 ConfData <- data.frame(cumulative.moisture.height = seq(min(moisture_loss_fit$cumulative.moisture.height, na.rm = TRUE),
@@ -426,8 +426,8 @@ ice.loss <- ggplot(moisture_loss_fit, aes(x = cumulative.moisture.height*-1, y =
   coord_fixed()
 ice.loss
 
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.jpg', ice.loss, width = 95, height = 100, units = 'mm')
-# ggsave('C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.pdf', ice.loss, width = 95, height = 100, units = 'mm')
+# ggsave('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.jpg', ice.loss, width = 95, height = 100, units = 'mm')
+# ggsave('/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_potential_sub.pdf', ice.loss, width = 95, height = 100, units = 'mm')
 
 ice_loss_model_table <- data.frame(Response = c('Subsidence', NA),
                              `Full Model` = c('Ice Height', 'Soil Warming'),
@@ -438,7 +438,7 @@ ice_loss_model_table <- data.frame(Response = c('Subsidence', NA),
                              `R2 Marginal` = c(r.squared[1], NA),
                              `R2 Conditional` = c(r.squared[2], NA),
                              AIC = c(AIC(model), NA))
-# write.csv(ice_loss_model_table, 'C:/Users/Heidi Rodenhizer/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_model_table.csv', row.names = FALSE)
+# write.csv(ice_loss_model_table, '/home/heidi/Documents/School/NAU/Schuur Lab/GPS/Figures/ice_loss_model_table.csv', row.names = FALSE)
 ####################################################################################################################################
 
 ### Estimate subsidence from C loss ################################################################################################
